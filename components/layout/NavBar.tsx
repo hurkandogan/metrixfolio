@@ -1,0 +1,100 @@
+'use client';
+
+import { useTheme } from '@/context/ThemeProvider';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useRef } from 'react';
+// icons
+import { FiMoon, FiSun, FiLogOut } from 'react-icons/fi';
+
+export const NavBar = () => {
+  const { theme, toggleTheme } = useTheme();
+  const currentPathName = usePathname();
+  const logoutModalRef = useRef<HTMLDialogElement>(null);
+
+  const handleLogoutConfirm = () => {
+    logoutModalRef.current?.close();
+    // Firebase Auth will be added here
+    console.log('Logout confirmed');
+  };
+
+  return (
+    <>
+      <div className="navbar bg-base-100 sticky top-0 z-50 shadow-sm">
+        {/* Start */}
+        <div className="navbar-start">
+          <Link href="/" className="btn btn-ghost text-xl normal-case">
+            MetrixFolio
+          </Link>
+        </div>
+        {/* Center */}
+        <div className="navbar-center hidden lg:flex">
+          <ul className="menu menu-horizontal px-1">
+            <li>
+              <Link
+                href={'/'}
+                className={`${currentPathName === '/' ? 'menu-active' : ''}`}
+              >
+                Dashboard
+              </Link>
+            </li>
+            <li>
+              <Link
+                href={'/'}
+                className={`${currentPathName === '/stock-hunter' ? 'menu-active' : ''}`}
+              >
+                Stock Hunter
+              </Link>
+            </li>
+          </ul>
+        </div>
+        {/* End */}
+        <div className="navbar-end">
+          <label className="swap swap-rotate btn btn-ghost btn-circle">
+            <input
+              type="checkbox"
+              onChange={toggleTheme}
+              checked={theme === 'dark'}
+              className="hidden"
+            />
+
+            <FiSun className="swap-on h-6 w-6 fill-current" />
+
+            <FiMoon className="swap-off h-6 w-6 fill-current" />
+          </label>
+
+          <button
+            className="btn btn-primary ml-2"
+            onClick={() => logoutModalRef.current?.showModal()}
+          >
+            <FiLogOut className="h-5 w-5" />
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <dialog
+        ref={logoutModalRef}
+        className="modal modal-bottom sm:modal-middle"
+      >
+        <div className="modal-box">
+          <h3 className="text-error text-lg font-bold">Confirm Logout</h3>
+          <p className="py-4">
+            Are you sure you want to log out from MetrixFolio?
+          </p>
+          <div className="modal-action">
+            <form method="dialog">
+              <button className="btn btn-ghost mr-2">Cancel</button>
+            </form>
+            <button className="btn btn-error" onClick={handleLogoutConfirm}>
+              Yes, Logout
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button>Cancel</button>
+        </form>
+      </dialog>
+    </>
+  );
+};

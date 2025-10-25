@@ -1,5 +1,15 @@
+// npm
 import type { Metadata } from 'next';
+// styling
 import '@/styles/globals.css';
+import { Inter } from 'next/font/google';
+// state
+import { ThemeProvider } from '@/context/ThemeProvider';
+// components
+import { NavBar } from '@/components/layout/NavBar';
+import { Footer } from '@/components/layout/Footer';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'MetrixFolio',
@@ -17,7 +27,15 @@ export default function RootLayout({
         <link rel="icon" href="/assets/favicon.png" sizes="any" />
         <title>MetrixFolio</title>
       </head>
-      <body className={`antialiased`}>{children}</body>
+      <body className={inter.className}>
+        <ThemeProvider>
+          <div className="flex min-h-screen flex-col">
+            <NavBar />
+            <main className="container mx-auto grow p-4">{children}</main>
+            <Footer />
+          </div>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
