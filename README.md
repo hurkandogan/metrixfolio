@@ -19,7 +19,7 @@ As a Senior Developer with a rational and analytical mindset, I needed a tool th
 
 This project is built to serve two core purposes:
 
-1.  **A Personal Goal Tracker:** To manage my long-term financial goals (e.g., $1M) by tracking them in disciplined, incremental steps (e.g., 10% growth targets).
+1.  **A Personal Goal Tracker:** To manage my long-term financial goals by tracking them in disciplined, incremental steps.
 2.  **A Technical Showcase:** To serve as a "vitrin" project for job applications, demonstrating a modern, high-performance, and type-safe tech stack from frontend to backend, all cleanly integrated within the Firebase platform.
 
 This tool is designed to move beyond amateur investing by providing a data-driven "value and opportunity hunting" system, helping me make rational decisions by filtering market data against my specific criteria.
@@ -74,7 +74,7 @@ To get a local copy up and running, follow these simple steps.
 1.  **Clone the repository:**
 
     ```sh
-    git clone [https://github.com/YOUR_USERNAME/metrixfolio.git](https://github.com/YOUR_USERNAME/metrixfolio.git)
+    git clone [https://github.com/hurkandogan/metrixfolio.git](https://github.com/hurkandogan/metrixfolio.git)
     cd metrixfolio
     ```
 
