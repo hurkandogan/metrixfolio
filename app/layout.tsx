@@ -5,6 +5,7 @@ import '@/styles/globals.css';
 import { Inter } from 'next/font/google';
 // state
 import { ThemeProvider } from '@/context/ThemeProvider';
+import { AuthProvider } from '@/context/AuthProvider';
 // components
 import { NavBar } from '@/components/layout/NavBar';
 import { Footer } from '@/components/layout/Footer';
@@ -29,11 +30,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <div className="flex min-h-screen flex-col">
-            <NavBar />
-            <main className="container mx-auto grow p-4">{children}</main>
-            <Footer />
-          </div>
+          <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>

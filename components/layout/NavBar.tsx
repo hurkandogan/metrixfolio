@@ -4,6 +4,8 @@ import { useTheme } from '@/context/ThemeProvider';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRef } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/utils/firebase';
 // icons
 import { FiMoon, FiSun, FiLogOut } from 'react-icons/fi';
 
@@ -12,10 +14,14 @@ export const NavBar = () => {
   const currentPathName = usePathname();
   const logoutModalRef = useRef<HTMLDialogElement>(null);
 
-  const handleLogoutConfirm = () => {
+  const handleLogoutConfirm = async () => {
     logoutModalRef.current?.close();
-    // Firebase Auth will be added here
-    console.log('Logout confirmed');
+    try {
+      await signOut(auth);
+      console.log('user is logged out');
+    } catch (err) {
+      console.error('logout error: ', err);
+    }
   };
 
   return (

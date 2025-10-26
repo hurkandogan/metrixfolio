@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCurrency } from '@/utils/functions';
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useState, ChangeEvent } from 'react';
 
 interface GrowthStep {
   step: number;
@@ -19,28 +19,34 @@ interface GoalTableProps {
 export const GoalTable: FC<GoalTableProps> = ({
   startingAmount,
   steps,
-  growthRate,
   currentValue,
 }) => {
   const [data, setData] = useState<GrowthStep[]>([]);
+  const [rateInput, setRateInput] = useState<number>(10);
 
   useEffect(() => {
+    const growthRate = rateInput / 100;
     const generatedData: GrowthStep[] = [];
-    let currentValue = startingAmount;
+    let currentLoopValue = startingAmount;
     for (let i = 1; i <= steps; i++) {
-      const growth = currentValue * growthRate;
-      const nextValue = currentValue + growth;
+      const growth = currentLoopValue * growthRate;
+      const nextValue = currentLoopValue + growth;
 
       generatedData.push({
         step: i,
-        startValue: currentValue,
+        startValue: currentLoopValue,
         growthAmount: growth,
         endValue: nextValue,
       });
-      currentValue = nextValue;
+      currentLoopValue = nextValue;
     }
     setData(generatedData);
-  }, [startingAmount, steps, growthRate]);
+  }, [startingAmount, steps, rateInput]);
+
+  const handleRateChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const newRate = e.target.value ? parseFloat(e.target.value) : 0;
+    setRateInput(newRate);
+  };
 
   const totalPercentageGain =
     ((currentValue - startingAmount) / startingAmount) * 100;
@@ -49,15 +55,32 @@ export const GoalTable: FC<GoalTableProps> = ({
     <>
       <div className="card bg-base-100 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title">10% Growth Targets</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="card-title">Growth Targets</h2>
+            <div className="form-control">
+              <label className="input-group input-group-sm">
+                <span className="bg-base-200"></span>
+                <input
+                  type="number"
+                  value={rateInput}
+                  onChange={handleRateChange}
+                  className="input input-bordered input-sm w-20 text-right"
+                  step={0.5}
+                  min={0}
+                />
+                <span>%</span>
+              </label>
+            </div>
+          </div>
+
           <div className="max-h-[70vh] overflow-x-auto overflow-y-auto lg:max-h-[600px]">
             <table className="table-zebra table-pin-rows table-pin-footer table w-full">
               <thead>
                 <tr>
                   <th>Step</th>
                   <th>Start Value</th>
-                  <th>Target</th>
-                  <th>Last total</th>
+                  <th className="text-success">Target</th>
+                  <th className="font-bold">Last total</th>
                 </tr>
               </thead>
               <tbody>

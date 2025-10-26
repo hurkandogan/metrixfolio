@@ -32,12 +32,7 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <GoalTable
-              startingAmount={200}
-              steps={50}
-              growthRate={0.1}
-              currentValue={201}
-            />
+            <GoalTable startingAmount={200} steps={50} currentValue={201} />
           </div>
 
           <div className="flex flex-col gap-6">
