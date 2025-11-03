@@ -1,0 +1,16 @@
+[package]
+name = "metrixfolio-api"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.6"
+tokio = { version = "1.0", features = ["full"]}
+dotenv = "0.15"
+reqwest = {version = "0.12.24", features = ["json"]}
+serde = {version = "1.0.228", features = ["derive"]}
+serde_json = "1.0.145"
+hmac = "0.12.1"
+sha2 = "0.10.9"
+base64 = "0.22.1"
+chrono = "0.4.42"

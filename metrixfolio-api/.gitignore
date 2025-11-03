@@ -1,0 +1,12 @@
+/target/
+.env
+
+.vscode/
+
+.idea/
+
+Cargo.lock
+
+*.profraw
+*.gcda
+*.gcno
