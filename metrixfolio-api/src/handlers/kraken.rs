@@ -1,8 +1,9 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use axum_firebase_middleware::FirebaseClaims;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as base64_standard;
 use hmac::{Hmac, Mac};
@@ -189,7 +190,10 @@ pub async fn kraken_ticker_handler(
     }
 }
 
-pub async fn kraken_portfolio_handler(State(client): State<KrakenClient>) -> impl IntoResponse {
+pub async fn kraken_portfolio_handler(
+    State(client): State<KrakenClient>,
+    Extension(claims): Extension<FirebaseClaims>,
+) -> impl IntoResponse {
     println!("Kraken portfolio handler called");
 
     let nonce = SystemTime::now()
@@ -197,6 +201,13 @@ pub async fn kraken_portfolio_handler(State(client): State<KrakenClient>) -> imp
         .unwrap()
         .as_millis()
         .to_string();
+
+    let user_id = claims.sub;
+
+    println!(
+        "'Akıllı Portföy' handler'ı çağrıldı. Kullanıcı (axum-firebase-middleware'den): {}",
+        user_id
+    );
 
     let mut balance_params = HashMap::new();
     balance_params.insert("nonce".to_string(), nonce);

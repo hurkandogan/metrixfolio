@@ -5,7 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRef } from 'react';
 import { signOut } from 'firebase/auth';
-import { auth } from '@/utils/firebase';
+import { auth, db } from '@/utils/firebase';
+import { useAuth } from '@/context/AuthProvider';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { FiDatabase } from 'react-icons/fi';
 // icons
 import { FiMoon, FiSun, FiLogOut } from 'react-icons/fi';
 
@@ -14,6 +17,8 @@ export const NavBar = () => {
   const currentPathName = usePathname();
   const logoutModalRef = useRef<HTMLDialogElement>(null);
 
+  const { user } = useAuth();
+
   const handleLogoutConfirm = async () => {
     logoutModalRef.current?.close();
     try {
@@ -21,6 +26,38 @@ export const NavBar = () => {
       console.log('user is logged out');
     } catch (err) {
       console.error('logout error: ', err);
+    }
+  };
+
+  const handleTestFirestoreWrite = async () => {
+    // Güvenlik kuralımız 'user' gerektiriyor, o yüzden kontrol edelim
+    if (!user) {
+      alert('Error: No authenticated user found.');
+      return;
+    }
+
+    console.log(`Firestore writing test data begins.. User ID: ${user.uid}`);
+
+    try {
+      const docRef = doc(db, 'user_settings', user.uid);
+
+      const testData = {
+        message: 'Test is successful!',
+        lastUpdated: new Date(),
+        userEmail: user.email,
+      };
+
+      await setDoc(docRef, testData);
+
+      alert(
+        '✅ Successful! Test data written to Firestore. Check the console for details.',
+      );
+      console.log('Firestore writing successful!', testData);
+    } catch (error) {
+      console.error('Firestore Writing ERROR:', error);
+      alert(
+        '❌ ERROR! Could not write to Firestore. Check the console (F12) for details. (Most likely a Security Rule Error)',
+      );
     }
   };
 
@@ -68,6 +105,14 @@ export const NavBar = () => {
 
             <FiMoon className="swap-off h-6 w-6 fill-current" />
           </label>
+
+          <button
+            className="btn btn-ghost btn-circle"
+            onClick={handleTestFirestoreWrite}
+            title="Test Firestore Write"
+          >
+            <FiDatabase className="h-5 w-5" />
+          </button>
 
           <button
             className="btn btn-primary ml-2"

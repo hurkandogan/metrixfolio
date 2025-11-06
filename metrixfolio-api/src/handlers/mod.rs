@@ -1,3 +1,4 @@
-pub mod root;
+pub mod auth;
 pub mod kraken;
-//pub mod ibkr;
+pub mod root;
+pub mod stocks;
