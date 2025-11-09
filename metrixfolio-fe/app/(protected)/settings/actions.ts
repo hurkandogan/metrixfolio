@@ -1,8 +1,9 @@
 'use server';
 
 import { adminDb } from '@/utils/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
-import { Category, ManualAsset } from '@/types/settings';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { Category, CategoryType, CollectionType } from '@/types/settings';
+import { Position } from '@/types/positions';
 
 type FormResponse = {
   success: boolean;
@@ -10,19 +11,26 @@ type FormResponse = {
   data?: any;
 };
 
-export enum CollectionType {
-  USER_SETTINGS = 'user_settings',
-  MANUAL_ASSETS = 'manual_assets',
+function getSettingsRef(userId: string) {
+  return adminDb
+    .collection(CollectionType.USERS)
+    .doc(userId)
+    .collection(CollectionType.SETTINGS)
+    .doc(CollectionType.CONFIG);
 }
 
-enum ConnectionType {
-  KRAKEN = 'kraken',
+function getOpenPositionsRef(userId: string) {
+  return adminDb
+    .collection(CollectionType.USERS)
+    .doc(userId)
+    .collection(CollectionType.OPEN_POSITIONS);
 }
 
 export async function addCategoryAction(
   userId: string,
   newCategoryName: string,
   newCategoryTarget: number,
+  newCategoryType: CategoryType,
 ): Promise<FormResponse> {
   if (!userId) return { success: false, message: 'User not authenticated.' };
   if (newCategoryName.trim().length === 0)
@@ -34,15 +42,21 @@ export async function addCategoryAction(
     };
 
   try {
-    const docRef = adminDb.collection(CollectionType.USER_SETTINGS).doc(userId);
+    const settingsRef = getSettingsRef(userId);
     const newCategory: Category = {
       id: `cat_${Date.now()}`,
       name: newCategoryName.trim(),
       target_percentage: newCategoryTarget ? newCategoryTarget : 0,
+      type: newCategoryType,
     };
-    await docRef.update({
-      categories: FieldValue.arrayUnion(newCategory),
-    });
+
+    await settingsRef.set(
+      {
+        categories: FieldValue.arrayUnion(newCategory),
+      },
+      { merge: true },
+    );
+
     return {
       success: true,
       message: `Category '${newCategory.name}' added successfully.`,
@@ -61,8 +75,8 @@ export async function deleteCategoryAction(
   if (!userId) return { success: false, message: 'User not authenticated.' };
 
   try {
-    const docRef = adminDb.collection(CollectionType.USER_SETTINGS).doc(userId);
-    await docRef.update({
+    const settingsRef = getSettingsRef(userId);
+    await settingsRef.update({
       categories: FieldValue.arrayRemove(categoryToDelete),
     });
     return {
@@ -78,7 +92,11 @@ export async function deleteCategoryAction(
 export async function updateCategoryAction(
   userId: string,
   oldCategory: Category,
-  newCategoryData: { name: string; target_percentage: number },
+  newCategoryData: {
+    name: string;
+    target_percentage: number;
+    type: CategoryType;
+  },
 ): Promise<FormResponse> {
   if (!userId) return { success: false, message: 'User not authenticated.' };
 
@@ -89,18 +107,20 @@ export async function updateCategoryAction(
     return { success: false, message: 'Invalid name or target percentage.' };
 
   try {
-    const docRef = adminDb.collection('user_settings').doc(userId);
+    const settingsRef = getSettingsRef(userId);
 
     const updatedCategory: Category = {
       id: oldCategory.id,
       name: newName,
       target_percentage: newTarget,
+      type: newCategoryData.type,
     };
-
-    await docRef.update({
+    // Remove old category
+    await settingsRef.update({
       categories: FieldValue.arrayRemove(oldCategory),
     });
-    await docRef.update({
+    // Add updated category
+    await settingsRef.update({
       categories: FieldValue.arrayUnion(updatedCategory),
     });
 
@@ -115,52 +135,79 @@ export async function updateCategoryAction(
   }
 }
 
-export async function addAssetAction(
+export async function addPositionAction(
   userId: string,
-  newAsset: Omit<ManualAsset, 'id'>,
+  newPositionData: Omit<Position, 'id' | 'user_id'>,
 ): Promise<FormResponse> {
   if (!userId) return { success: false, message: 'User not authenticated.' };
 
-  if (newAsset.ticker.trim().length === 0 || newAsset.amount <= 0)
-    return { success: false, message: 'Ticket and amount are required!' };
+  if (newPositionData.amount <= 0 || newPositionData.total_cost <= 0) {
+    return { success: false, message: 'Amount must be greater than zero.' };
+  }
 
   try {
-    const docRef = adminDb.collection(CollectionType.USER_SETTINGS).doc(userId);
-    const assetToAdd: ManualAsset = {
-      ...newAsset,
-      id: `asset_${Date.now()}`,
+    const positionsRef = getOpenPositionsRef(userId);
+    const newDocRef = positionsRef.doc();
+
+    const positionToAdd: Position = {
+      ...newPositionData,
+      id: newDocRef.id,
+      user_id: userId,
     };
-    await docRef.update({
-      [CollectionType.MANUAL_ASSETS]: FieldValue.arrayUnion(assetToAdd),
-    });
+
+    await newDocRef.set(positionToAdd, { merge: true });
     return {
       success: true,
-      message: `Asset '${assetToAdd.ticker}' added successfully.`,
-      data: assetToAdd,
+      message: `Position added successfully.`,
+      data: positionToAdd,
     };
   } catch (error: any) {
-    console.error('addAssetActionError: ', error);
+    console.error('addPositionAction Error: ', error);
     return { success: false, message: `Server error: ${error.message}` };
   }
 }
 
-export async function deleteAssetAction(
+export async function closePositionAction(
   userId: string,
-  assetToDelete: ManualAsset,
+  positionToClose: Position,
+  exitPrice: number,
+  exitDateMillis: number,
 ): Promise<FormResponse> {
   if (!userId) return { success: false, message: 'User not authenticated.' };
 
   try {
-    const docRef = adminDb.collection(CollectionType.USER_SETTINGS).doc(userId);
-    await docRef.update({
-      [CollectionType.MANUAL_ASSETS]: FieldValue.arrayRemove(assetToDelete),
-    });
+    const closedPositionRef = adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection(CollectionType.CLOSED_POSITIONS);
+
+    const openPositionRef = getOpenPositionsRef(userId).doc(positionToClose.id);
+
+    const profitLoss =
+      (exitPrice - positionToClose.total_cost / positionToClose.amount) *
+      positionToClose.amount;
+
+    const exitDate = Timestamp.fromMillis(exitDateMillis);
+
+    const closedPositionData = {
+      ...positionToClose,
+      exit_price_per_unit: exitPrice,
+      exit_date: exitDate,
+      profit_loss: profitLoss,
+    };
+
+    const batch = adminDb.batch();
+    const newClosedRef = closedPositionRef.doc(positionToClose.id);
+    batch.set(newClosedRef, closedPositionData);
+    batch.delete(openPositionRef);
+
+    await batch.commit();
     return {
       success: true,
-      message: `Asset '${assetToDelete.ticker}' deleted.`,
+      message: `Position '${positionToClose.ticker || positionToClose.currency}' closed.`,
     };
   } catch (error: any) {
-    console.error('deleteAssetAction Error:', error);
+    console.error('closePositionAction Error:', error);
     return { success: false, message: `Server error: ${error.message}` };
   }
 }

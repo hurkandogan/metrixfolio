@@ -1,0 +1,127 @@
+{
+    "total_eur_value": 991.6629932149187,
+    "total_usd_value": 1147.3045,
+    "assets_by_category": {
+        "cat_1762464756014": [
+            {
+                "id": "asset_1762471026321",
+                "symbol": "RKLB",
+                "name": "Rocket Lab Corp",
+                "amount": 1.0,
+                "value_eur": 44.634599593759454,
+                "value_usd": 51.64,
+                "source": "Manual",
+                "category_id": "cat_1762464756014"
+            }
+        ],
+        "cat_1762464749101": [],
+        "cat1": [
+            {
+                "id": "asset_1762470999249",
+                "symbol": "AAPL",
+                "name": "Apple Inc",
+                "amount": 1.35,
+                "value_eur": 313.26721120186704,
+                "value_usd": 362.43450000000007,
+                "source": "Manual",
+                "category_id": "cat1"
+            },
+            {
+                "id": "asset_1762471009386",
+                "symbol": "AMZN",
+                "name": "Amazon.com Inc",
+                "amount": 1.0,
+                "value_eur": 211.25372747309737,
+                "value_usd": 244.41,
+                "source": "Manual",
+                "category_id": "cat1"
+            },
+            {
+                "id": "asset_1762551051902",
+                "symbol": "AMZN",
+                "name": "Amazon.com Inc",
+                "amount": 2.0,
+                "value_eur": 422.50745494619474,
+                "value_usd": 488.82,
+                "source": "Manual",
+                "category_id": "cat1"
+            }
+        ],
+        "cat_1762464766621": [],
+        "cat_1762464761245": [],
+        "cat3": [
+            {
+                "id": "ETH.F",
+                "symbol": "ETH.F",
+                "name": "ETH Futures",
+                "amount": 0.0505262162,
+                "value_eur": 0.0,
+                "value_usd": 0.0,
+                "source": "Kraken",
+                "category_id": "cat3"
+            },
+            {
+                "id": "XXRP",
+                "symbol": "XXRP",
+                "name": "Ripple",
+                "amount": 11.64142,
+                "value_eur": 0.0,
+                "value_usd": 0.0,
+                "source": "Kraken",
+                "category_id": "cat3"
+            }
+        ]
+    },
+    "summary_by_category": {
+        "cat_1762464756014": {
+            "name": "High Risk",
+            "value_eur": 44.634599593759454,
+            "value_usd": 51.64,
+            "target_percentage": 15.0,
+            "actual_percentage": 4.500984699354007
+        },
+        "cat_1762464749101": {
+            "name": "Cash",
+            "value_eur": 0.0,
+            "value_usd": 0.0,
+            "target_percentage": 5.0,
+            "actual_percentage": 0.0
+        },
+        "cat1": {
+            "name": "Growth",
+            "value_eur": 947.0283936211592,
+            "value_usd": 1095.6645,
+            "target_percentage": 50.0,
+            "actual_percentage": 95.49901530064598
+        },
+        "cat_1762464761245": {
+            "name": "Metal",
+            "value_eur": 0.0,
+            "value_usd": 0.0,
+            "target_percentage": 5.0,
+            "actual_percentage": 0.0
+        },
+        "cat3": {
+            "name": "Crypto",
+            "value_eur": 0.0,
+            "value_usd": 0.0,
+            "target_percentage": 10.0,
+            "actual_percentage": 0.0
+        },
+        "cat_1762464766621": {
+            "name": "Options",
+            "value_eur": 0.0,
+            "value_usd": 0.0,
+            "target_percentage": 10.0,
+            "actual_percentage": 0.0
+        }
+    },
+    "categories": {
+        "cat_1762464761245": "Metal",
+        "cat1": "Growth",
+        "cat_1762464766621": "Options",
+        "cat_1762464756014": "High Risk",
+        "cat3": "Crypto",
+        "cat_1762464749101": "Cash"
+    }
+}
