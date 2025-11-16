@@ -25,10 +25,15 @@ jobs:
           workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
           service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
 
-      - name: Deploy to Firebase App Hosting
-        uses: 'google-github-actions/deploy-apphosting@v0'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          project_id: '${{ secrets.GCP_PROJECT_ID }}'
-          backend_id: 'metrixfolio'
-          
-          working_dir: 'metrixfolio-fe'
+          node-version: 'lts/current'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy metrixfolio-fe to App Hosting
+        run: |
+          cd metrixfolio-fe
+          firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio
