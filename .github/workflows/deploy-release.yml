@@ -1,0 +1,45 @@
+# .github/workflows/deploy-frontend-on-tag.yml
+
+name: Deploy Frontend (metrixfolio-fe) on Tag
+
+# SADECE 'v' ile baslayan bir tag push'landiginda tetiklen
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy-frontend:
+    name: Deploy metrixfolio-fe to Firebase App Hosting
+    runs-on: ubuntu-latest
+
+    # Gerekli Izinler: WIF icin 'id-token: write' SARTTIR
+    permissions:
+      contents: 'read'
+      id-token: 'write'  # <-- Bu satir WIF icin kritik
+      
+    steps:
+      # Adim 1: Kodu cek
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # --- DEĞİŞEN KISIM BURASI ---
+      # 'credentials_json' YERINE Workload Identity Federation kullaniyoruz
+      # Bu, senin mevcut GitHub Secret'larini kullanacak
+      - name: Authenticate to Google Cloud (via WIF)
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+      # --- DEGISIKLIK SONA ERDI ---
+
+      # Adim 3: Firebase App Hosting'e deploy et
+      - name: Deploy to Firebase App Hosting
+        uses: 'firebase-actions/apphosting-deploy@v0'
+        with:
+          # Proje ID'sini de hard-code yazmak yerine secret'tan alalim
+          project_id: '${{ secrets.GCP_PROJECT_ID }}'
+          backend_id: 'metrixfolio'
+          
+          # MONOREPO Icin kritik ayar:
+          working_dir: 'metrixfolio-fe'

@@ -402,7 +402,6 @@ export function PositionManager({
                 <td>
                   {pos.total_cost.toFixed(2)} {pos.cost_currency}
                 </td>
-                { console.log(pos.date) }
                 <td>
                   {(pos.date as Timestamp).toDate().toLocaleDateString('de-DE')}
                 </td>
