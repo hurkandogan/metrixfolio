@@ -34,15 +34,10 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Write Service Account Key to File
-        run: 'echo "${{ env.GCP_SA_KEY }}" > /tmp/firebase-sa.json'
-
       - name: Deploy metrixfolio-fe to App Hosting
         run: |
           cd metrixfolio-fe
           firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio --token ${{ secrets.FIREBASE_TOKEN }}
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
 
   deploy-backend:
     name: Deploy metrixfolio-api (Backend)
