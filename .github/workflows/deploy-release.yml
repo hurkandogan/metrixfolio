@@ -40,8 +40,6 @@ jobs:
       - name: Deploy metrixfolio-fe to App Hosting
         run: |
           cd metrixfolio-fe
-          npm install
-          npm run build
           firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
