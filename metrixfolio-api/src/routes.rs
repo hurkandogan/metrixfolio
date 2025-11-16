@@ -36,7 +36,7 @@ pub fn create_router(app_state: AppState) -> Router {
 
     let public_routes = Router::new()
         .route("/", get(root_handler))
-        .route("/api/v1/public/stock-list", get(stock_list_handler))
+        .route("/api/v1/stock-list", get(stock_list_handler))
         .with_state(app_state.clone());
 
     Router::new()
