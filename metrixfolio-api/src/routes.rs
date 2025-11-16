@@ -13,7 +13,11 @@ use tower_http::cors::CorsLayer;
 pub fn create_router(app_state: AppState) -> Router {
     let cors_layer = CorsLayer::new()
         .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-        // TODO: Buraya canlı FE adresini de ekleyeceğiz
+        .allow_origin(
+            "https://metrixfolio--metrixfolio.europe-west4.hosted.app/"
+                .parse::<HeaderValue>()
+                .unwrap(),
+        )
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(vec![
             axum::http::header::AUTHORIZATION,
@@ -36,7 +40,7 @@ pub fn create_router(app_state: AppState) -> Router {
 
     let public_routes = Router::new()
         .route("/", get(root_handler))
-        .route("/api/v1/stock-list", get(stock_list_handler))
+        .route("/api/v1/public/stock-list", get(stock_list_handler))
         .with_state(app_state.clone());
 
     Router::new()
