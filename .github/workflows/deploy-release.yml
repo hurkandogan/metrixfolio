@@ -36,4 +36,4 @@ jobs:
       - name: Deploy metrixfolio-fe to App Hosting
         run: |
           cd metrixfolio-fe
-          firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio
+          firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio --token ${{ secrets.FIREBASE_TOKEN }}
