@@ -81,10 +81,9 @@ jobs:
           
           echo "Pushing image: $IMAGE_TAG"
           docker push $IMAGE_TAG
-          
+
       - name: Deploy to Cloud Run
         run: |
-          # Bir önceki adimda push'lanan imajin tam adresi
           export IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.API_IMAGE_REPO }}/${{ env.API_SERVICE_NAME }}:${{ steps.get_tag.outputs.TAG_NAME }}"
           
           echo "Deploying image to Cloud Run service: ${{ env.API_SERVICE_NAME }}"
@@ -93,4 +92,6 @@ jobs:
             --image $IMAGE_TAG \
             --region ${{ env.GCP_REGION }} \
             --platform managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-secrets=KRAKEN_API_KEY=METRIXFOLIO_KRAKEN_KEY:latest,KRAKEN_API_SECRET=METRIXFOLIO_KRAKEN_SECRET:latest,GOOGLE_SHEET_CSV_URL=METRIXFOLIO_GOOGLE_SHEET_URL:latest \
+            --set-env-vars=FIREBASE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
