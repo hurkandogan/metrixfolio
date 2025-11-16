@@ -14,7 +14,7 @@ pub fn create_router(app_state: AppState) -> Router {
     let cors_layer = CorsLayer::new()
         .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
         .allow_origin(
-            "https://metrixfolio--metrixfolio.europe-west4.hosted.app/"
+            "https://metrixfolio--metrixfolio.europe-west4.hosted.app"
                 .parse::<HeaderValue>()
                 .unwrap(),
         )
