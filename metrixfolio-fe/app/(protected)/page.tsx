@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StatCards } from '@/components/dashboard/StatCards';
 import { AllocationChart } from '@/components/dashboard/AllocationChart';
 import { GoalTable } from '@/components/dashboard/GoalTable';
-import { PortfolioData } from '@/types/data';
 import { useAuth } from '@/context/AuthProvider';
 import { usePortfolio } from '@/hooks/usePortfolio';
 
