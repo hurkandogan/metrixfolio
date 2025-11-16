@@ -5,6 +5,13 @@ on:
     tags:
       - 'v*'
 
+env:
+  GCP_PROJECT_ID: '${{ secrets.GCP_PROJECT_ID }}'
+  GCP_SA_KEY: '${{ secrets.FIREBASE_SA_KEY }}'
+  GCP_REGION: 'europe-west3'
+  API_SERVICE_NAME: 'metrixfolio-api'
+  API_IMAGE_REPO: 'metrixfolio-registry'
+
 jobs:
   deploy-frontend:
     name: Deploy metrixfolio-fe to Firebase App Hosting
@@ -19,12 +26,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud (via WIF)
-        uses: 'google-github-actions/auth@v2'
-        with:
-          workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
-          service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -33,7 +34,63 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      - name: Write Service Account Key to File
+        run: 'echo "${{ env.GCP_SA_KEY }}" > /tmp/firebase-sa.json'
+
       - name: Deploy metrixfolio-fe to App Hosting
         run: |
           cd metrixfolio-fe
-          firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio --token ${{ secrets.FIREBASE_TOKEN }}
+          npm install
+          npm run build
+          firebase deploy --project=${{ secrets.GCP_PROJECT_ID }} --only apphosting:metrixfolio
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
+
+  deploy-backend:
+    name: Deploy metrixfolio-api (Backend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ env.GCP_SA_KEY }}'
+
+      - name: Setup Google Cloud CLI
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Get Tag Name
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        
+      - name: Build and Push Docker Image
+        run: |
+          export IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.API_IMAGE_REPO }}/${{ env.API_SERVICE_NAME }}:${{ steps.get_tag.outputs.TAG_NAME }}"
+          
+          echo "Building image: $IMAGE_TAG"
+          
+          cd metrixfolio-api
+          docker build -t $IMAGE_TAG .
+          
+          echo "Pushing image: $IMAGE_TAG"
+          docker push $IMAGE_TAG
+          
+      - name: Deploy to Cloud Run
+        run: |
+          # Bir önceki adimda push'lanan imajin tam adresi
+          export IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.API_IMAGE_REPO }}/${{ env.API_SERVICE_NAME }}:${{ steps.get_tag.outputs.TAG_NAME }}"
+          
+          echo "Deploying image to Cloud Run service: ${{ env.API_SERVICE_NAME }}"
+          
+          gcloud run deploy ${{ env.API_SERVICE_NAME }} \
+            --image $IMAGE_TAG \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated
