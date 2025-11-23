@@ -1,49 +1,60 @@
-'use client';
-
 import useSWR from 'swr';
 import { useAuth } from '@/context/AuthProvider';
-import { PortfolioResponse } from '@/types/portfolio';
-import { useEffect, useState } from 'react';
+import { auth } from '@/utils/firebase';
 
-const fetcher = async ([url, token]: [
-  string,
-  string,
-]): Promise<PortfolioResponse> => {
-  const response = await fetch(url, {
+export interface PortfolioSummary {
+  total_value: number;
+  total_cost: number;
+  total_pnl: number;
+  pnl_percentage: number;
+  base_currency: string;
+  categories: {
+    id: string;
+    name: string;
+    value: number;
+    actual_percentage: number;
+    target_percentage: number;
+  }[];
+}
+
+const fetcherWithAuth = async (url: string) => {
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    throw new Error('User not authenticated');
+  }
+
+  // Token'ı taze taze al
+  const token = await currentUser.getIdToken();
+
+  const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch portfolio data.');
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to fetch portfolio');
   }
-  return response.json();
+
+  return res.json();
 };
 
 export function usePortfolio() {
   const { user } = useAuth();
-  const [token, setToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      user.getIdToken().then(setToken);
-    }
-  }, [user]);
+  const { data, error, isLoading, mutate } = useSWR<PortfolioSummary>(
+    user ? [`http://localhost:8080/api/v1/portfolio/summary`, user.uid] : null,
 
-  const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/portfolio`;
-
-  const { data, error, isLoading } = useSWR<PortfolioResponse>(
-    token ? [apiUrl, token] : null,
-    fetcher,
-    {
-      refreshInterval: 1000 * 60 * 15,
-    },
+    ([url]) => fetcherWithAuth(url),
   );
 
   return {
     portfolio: data,
     isLoading,
     isError: error,
+    mutate,
   };
 }

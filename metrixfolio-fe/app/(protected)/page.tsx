@@ -8,8 +8,9 @@ import { useAuth } from '@/context/AuthProvider';
 import { usePortfolio } from '@/hooks/usePortfolio';
 
 export default function Dashboard() {
-  const { user } = useAuth();
   const { portfolio, isLoading, isError } = usePortfolio();
+
+  console.log(portfolio);
 
   const targetChartData = useMemo(() => {
     if (!portfolio?.categories) return [];

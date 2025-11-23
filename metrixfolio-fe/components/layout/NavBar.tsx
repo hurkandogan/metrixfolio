@@ -7,12 +7,14 @@ import { useRef } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/utils/firebase';
 // icons
-import { FiMoon, FiSun, FiLogOut } from 'react-icons/fi';
+import { FiMoon, FiSun, FiLogOut, FiDatabase } from 'react-icons/fi';
+import { useAuth } from '@/context/AuthProvider';
 
 export const NavBar = () => {
   const { theme, toggleTheme } = useTheme();
   const currentPathName = usePathname();
   const logoutModalRef = useRef<HTMLDialogElement>(null);
+  const test = useAuth();
 
   const handleLogoutConfirm = async () => {
     logoutModalRef.current?.close();
@@ -21,6 +23,40 @@ export const NavBar = () => {
       console.log('user is logged out');
     } catch (err) {
       console.error('logout error: ', err);
+    }
+  };
+
+  const handleSync = async () => {
+    const user = test.user;
+
+    if (!user) {
+      console.error('No user found for sync.');
+      return;
+    }
+    const token = await user.getIdToken();
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/sync/all`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'text/plain',
+          },
+        },
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        alert('BAŞARILI: ' + JSON.stringify(data));
+      } else {
+        const errorText = await res.text();
+        alert('HATA: ' + errorText);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Baglanti hatasi!');
     }
   };
 
@@ -70,6 +106,14 @@ export const NavBar = () => {
             </li>
             <li>
               <Link
+                href={'/positions'}
+                className={`${currentPathName === '/positions' ? 'menu-active' : ''}`}
+              >
+                Positions
+              </Link>
+            </li>
+            <li>
+              <Link
                 href={'/settings'}
                 className={`${currentPathName === '/settings' ? 'menu-active' : ''}`}
               >
@@ -94,6 +138,11 @@ export const NavBar = () => {
             <FiMoon className="swap-off h-6 w-6 fill-current" />
           </label>
 
+          {/*        <button className="btn btn-primary ml-2" onClick={() => handleSync()}>
+            <FiDatabase className="h-5 w-5" />
+            Test IBKR
+          </button>
+*/}
           <button
             className="btn btn-primary ml-2"
             onClick={() => logoutModalRef.current?.showModal()}

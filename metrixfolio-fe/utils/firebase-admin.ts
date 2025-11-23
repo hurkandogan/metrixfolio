@@ -1,3 +1,4 @@
+import 'server-only';
 import * as admin from 'firebase-admin';
 import { getApps } from 'firebase-admin/app';
 
@@ -15,4 +16,7 @@ if (!getApps().length) {
   });
 }
 
-export const adminDb = admin.firestore();
+const adminDb = admin.firestore();
+const adminAuth = admin.auth(); // İleride lazım olur
+
+export { adminDb, adminAuth };

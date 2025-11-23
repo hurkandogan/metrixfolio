@@ -9,13 +9,6 @@ import React, {
 } from 'react';
 import { useAuth } from '@/context/AuthProvider';
 import {
-  addCategoryAction,
-  deleteCategoryAction,
-  updateCategoryAction,
-  addPositionAction,
-  closePositionAction,
-} from './actions';
-import {
   collection,
   doc,
   DocumentData,
@@ -40,15 +33,13 @@ import {
   CategoryType,
   CollectionType,
 } from '@/types/settings';
-import { Position } from '@/types/positions';
-import { CategoryManager } from './components/CategoryManager';
 import { useSettingsData } from '@/hooks/useSettingsData';
-import { PositionManager } from './components/PositionManager';
+import CategoryManager from './components/CategoryManager';
 //import { ConnectionManager } from './components/ConnectionManager';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const { settings, openPositions, isLoading, error } = useSettingsData();
+  const { settings, isLoading, error } = useSettingsData();
 
   const [isProcessing, startTransition] = useTransition();
   const [modalRef, setModalRef] = useState<HTMLDialogElement | null>(null); //TODO: useRef?
@@ -58,7 +49,6 @@ export default function SettingsPage() {
     isError: false,
   });
   const [itemToDelete, setItemToDelete] = useState<Category | null>(null);
-  const [itemToClose, setItemToClose] = useState<Position | null>(null);
   const [exitPrice, setExitPrice] = useState<number | string>('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
     null,
@@ -87,60 +77,8 @@ export default function SettingsPage() {
     );
   };
 
-  const handleConfirmDeleteCategory = async () => {
-    if (!user || !itemToDelete) return;
-    startTransition(async () => {
-      const result = await deleteCategoryAction(user.uid, itemToDelete);
-      if (result.success) {
-        modalRef?.close();
-      } else {
-        showModal('Error', result.message, true);
-      }
-      setItemToDelete(null);
-    });
-  };
-
-  const handleClosePositionClick = (position: Position) => {
-    if (!user) return showModal('Error', 'User not authenticated.', true);
-    setItemToClose(position);
-    setExitPrice('');
-    showModal(
-      `Close Position: ${position.ticker || position.currency}`,
-      'Please enter the exit price (per unit) and date.',
-      false,
-    );
-  };
-
-  const handleConfirmClosePosition = async () => {
-    if (!user || !itemToClose) return;
-    const priceAsNumber = parseFloat(String(exitPrice));
-    if (priceAsNumber <= 0) {
-      return showModal(
-        'Input Error',
-        'Exit price must be greater than 0.',
-        true,
-      );
-    }
-
-    startTransition(async () => {
-      const result = await closePositionAction(
-        user.uid,
-        itemToClose,
-        priceAsNumber,
-        Date.now(),
-      );
-      if (result.success) {
-        modalRef?.close();
-      } else {
-        showModal('Error', result.message, true);
-      }
-      setItemToClose(null);
-    });
-  };
-
   const onModalClose = () => {
     setItemToDelete(null);
-    setItemToClose(null);
     setExitPrice('');
   };
 
@@ -177,22 +115,6 @@ export default function SettingsPage() {
           </h3>
           <p className="py-4">{modalContent.message}</p>
 
-          {itemToClose && (
-            <div className="form-control mt-4">
-              <label className="label">
-                <span className="label-text">Exit Price (per unit)</span>
-              </label>
-              <input
-                type="number"
-                placeholder="e.g., 150.50"
-                className="input input-bordered"
-                value={exitPrice}
-                onChange={(e) => setExitPrice(e.target.value)}
-                step="any"
-              />
-            </div>
-          )}
-
           <div className="modal-action">
             {itemToDelete && (
               <>
@@ -205,7 +127,7 @@ export default function SettingsPage() {
                 </button>
                 <button
                   className={`btn btn-error ${isProcessing ? 'btn-disabled' : ''}`}
-                  onClick={handleConfirmDeleteCategory}
+                  //onClick={handleConfirmDeleteCategory}
                   disabled={isProcessing}
                 >
                   {isProcessing ? (
@@ -215,37 +137,6 @@ export default function SettingsPage() {
                   )}
                 </button>
               </>
-            )}
-
-            {itemToClose && (
-              <>
-                <button
-                  className="btn btn-ghost"
-                  onClick={onModalClose}
-                  disabled={isProcessing}
-                >
-                  Cancel
-                </button>
-                <button
-                  className={`btn btn-primary ${isProcessing ? 'btn-disabled' : ''}`}
-                  onClick={handleConfirmClosePosition}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? (
-                    <FiLoader className="loading loading-spinner" />
-                  ) : (
-                    'Confirm Close Position'
-                  )}
-                </button>
-              </>
-            )}
-
-            {!itemToDelete && !itemToClose && (
-              <form method="dialog">
-                <button className="btn" onClick={onModalClose}>
-                  Close
-                </button>
-              </form>
             )}
           </div>
         </div>
@@ -283,36 +174,15 @@ export default function SettingsPage() {
             name="settings_tabs"
             role="tab"
             className="tab"
-            aria-label="Positions"
-            defaultChecked
-          />
-          <PositionManager
-            user={user}
-            settings={settings}
-            openPositions={openPositions}
-            showModal={showModal}
-            onClosePosition={handleClosePositionClick}
-            isProcessing={false}
-          />
-
-          <input
-            type="radio"
-            name="settings_tabs"
-            role="tab"
-            className="tab"
             aria-label="Categories"
             defaultChecked
           />
-
-          <CategoryManager
-            user={user}
-            categories={settings.categories}
-            openPositions={openPositions}
-            showModal={showModal}
-            onDeleteCategory={handleDeleteCategoryClick}
-            onClosePosition={handleClosePositionClick}
-            isProcessing={isProcessing}
-          />
+          <div
+            role="tabpanel"
+            className="tab-content bg-base-100 border-base-300 rounded-box p-6"
+          >
+            <CategoryManager />
+          </div>
         </div>
       </div>
     </>

@@ -2,6 +2,7 @@ mod clients;
 mod handlers;
 mod models;
 mod routes;
+mod services;
 mod state;
 
 use crate::routes::create_router;
@@ -12,6 +13,10 @@ use std::net::SocketAddr;
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
 
     let app_state = AppState::new()
         .await

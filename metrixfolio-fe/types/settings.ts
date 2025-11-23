@@ -1,13 +1,15 @@
 export enum CollectionType {
   USERS = 'users',
   SETTINGS = 'settings',
-  CONFIG = 'config',
-  MANUAL_ASSETS = 'manual_assets',
-  OPEN_POSITIONS = 'open_positions',
-  CLOSED_POSITIONS = 'closed_positions',
+  CONFIG = 'configuration',
+  ASSETS = 'assets',
 }
 
 export type CategoryType = 'ASSET' | 'CASH' | 'CRYPTO' | 'LIABILITY';
+
+export interface UserSettings {
+  categories: Category[];
+}
 
 export interface Category {
   id: string;
@@ -16,16 +18,8 @@ export interface Category {
   type: CategoryType;
 }
 
-export type ConnectionType = 'KRAKEN' | 'GOOGLE_SHEET';
-
-export interface Connection {
-  id: string;
-  type: ConnectionType;
-  name: string;
-  auto_category_id?: string;
-}
-
-export interface UserSettings {
+// Rust backend bu yapıyı bekliyor:
+export interface PortfolioConfig {
+  base_currency: string;
   categories: Category[];
-  connections: Connection[];
 }
