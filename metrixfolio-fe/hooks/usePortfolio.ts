@@ -24,7 +24,6 @@ const fetcherWithAuth = async (url: string) => {
     throw new Error('User not authenticated');
   }
 
-  // Token'ı taze taze al
   const token = await currentUser.getIdToken();
 
   const res = await fetch(url, {
@@ -46,7 +45,12 @@ export function usePortfolio() {
   const { user } = useAuth();
 
   const { data, error, isLoading, mutate } = useSWR<PortfolioSummary>(
-    user ? [`http://localhost:8080/api/v1/portfolio/summary`, user.uid] : null,
+    user
+      ? [
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/portfolio/summary`,
+          user.uid,
+        ]
+      : null,
 
     ([url]) => fetcherWithAuth(url),
   );

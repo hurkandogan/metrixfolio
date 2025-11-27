@@ -29,7 +29,7 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
         category_id: data.category_id || 'uncategorized',
       };
     });
-
+    console.log('Fetched assets for user:', userId, assets);
     return assets;
   } catch (error) {
     console.error('Error fetching assets:', error);
@@ -43,22 +43,21 @@ export async function updateAssetCategoryAction(
   categoryId: string,
 ) {
   if (!userId || !assetId || !categoryId) {
-    return { success: false, message: 'Eksik parametreler.' };
+    return { success: false, message: 'Missing parameters.' };
   }
 
   try {
-    // Yol: users/{userId}/assets/{assetId}
     const assetRef = adminDb
-      .collection('users')
+      .collection(CollectionType.USERS)
       .doc(userId)
-      .collection('assets') // Senin veriler burada
+      .collection(CollectionType.ASSETS)
       .doc(assetId);
 
     await assetRef.update({
       category_id: categoryId,
     });
 
-    return { success: true, message: 'Kategori güncellendi.' };
+    return { success: true, message: 'Category updated.' };
   } catch (error: any) {
     console.error('Update Category Error:', error);
     return { success: false, message: error.message };

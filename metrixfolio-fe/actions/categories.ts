@@ -5,8 +5,6 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { Category, CollectionType } from '@/types/settings';
 import { auth } from 'firebase-admin';
 
-// Helper: Config Döküman Referansı
-// PATH: users/{userId}/configuration/main
 const getConfigRef = (userId: string) =>
   adminDb
     .collection(CollectionType.USERS)
@@ -15,16 +13,17 @@ const getConfigRef = (userId: string) =>
     .doc('main');
 
 export async function addCategoryAction(
-  userId: string, // Bunu client'tan değil, session'dan almak daha güvenli ama şimdilik böyle
+  userId: string,
   name: string,
   target: number,
   type: string,
 ) {
-  if (!name) return { success: false, message: 'Kategori adı boş olamaz' };
+  if (!name)
+    return { success: false, message: 'Category name cannot be empty.' };
 
   try {
     const newCategory: Category = {
-      id: `cat_${Date.now()}`, // Benzersiz ID
+      id: `cat_${Date.now()}`,
       name: name.trim(),
       target_percentage: target,
       type: type as any,
@@ -32,11 +31,9 @@ export async function addCategoryAction(
 
     const ref = getConfigRef(userId);
 
-    // arrayUnion: Varsa ekler, yoksa dökümanı oluşturur ve ekler
     await ref.set(
       {
         categories: FieldValue.arrayUnion(newCategory),
-        // Eğer döküman hiç yoksa base_currency de ekleyelim varsayılan olarak
         base_currency: 'USD',
       },
       { merge: true },
@@ -44,7 +41,7 @@ export async function addCategoryAction(
 
     return {
       success: true,
-      message: 'Kategori eklendi',
+      message: 'Category added',
       category: newCategory,
     };
   } catch (error: any) {

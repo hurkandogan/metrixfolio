@@ -13,12 +13,12 @@ use tower_http::cors::{Any, CorsLayer};
 
 pub fn create_router(app_state: AppState) -> Router {
     let cors_layer = CorsLayer::new()
-        //.allow_origin(Any)
-        .allow_origin(
-            "https://metrixfolio--metrixfolio.europe-west4.hosted.app"
-                .parse::<HeaderValue>()
-                .unwrap(),
-        )
+        .allow_origin(Any)
+        // .allow_origin(
+        //     "https://metrixfolio--metrixfolio.europe-west4.hosted.app"
+        //         .parse::<HeaderValue>()
+        //         .unwrap(),
+        // )
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(vec![
             axum::http::header::AUTHORIZATION,

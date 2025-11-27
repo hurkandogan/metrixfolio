@@ -83,12 +83,15 @@ export default function PositionsPage() {
     try {
       const token = await user.getIdToken();
       // Rust Backend URL
-      const res = await fetch('http://localhost:8080/api/v1/sync/all', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/sync/all`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (res.ok) {
         await loadData();

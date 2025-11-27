@@ -20,7 +20,7 @@ As a Senior Developer with a rational and analytical mindset, I needed a tool th
 This project is built to serve two core purposes:
 
 1.  **A Personal Goal Tracker:** To manage my long-term financial goals by tracking them in disciplined, incremental steps.
-2.  **A Technical Showcase:** To serve as a "vitrin" project for job applications, demonstrating a modern, high-performance, and type-safe tech stack from frontend to backend, all cleanly integrated within the Firebase platform.
+2.  **A Technical Showcase:** To serve as a demonstration of a modern, high-performance, and type-safe tech stack from frontend to backend, all cleanly integrated within the Firebase platform.
 
 This tool is designed to move beyond amateur investing by providing a data-driven "value and opportunity hunting" system, helping me make rational decisions by filtering market data against my specific criteria.
 
@@ -31,7 +31,7 @@ This tool is designed to move beyond amateur investing by providing a data-drive
 - **🔎 Stock Hunter:** (Planned) A powerful filtering module to identify "value" and "opportunity" stocks based on custom metrics (P/E, P/B, Dividend Yield, etc.).
 - **🔐 Secure Authentication:** User login and registration powered by **Firebase Authentication**.
 - **🗃️ Serverless Database:** User goals and settings are securely stored in **Cloud Firestore**, accessed via server-side logic.
-- **🔌 IBKR Integration:** (Planned) Secure, read-only API connection to Interactive Brokers (IBKR) to fetch real-time portfolio performance and positions.
+- **🔌 IBKR Integration:** Secure, read-only API connection to Interactive Brokers (IBKR) to fetch real-time portfolio performance and positions.
 
 ## 💻 Tech Stack & Architecture
 
@@ -104,17 +104,5 @@ To get a local copy up and running, follow these simple steps.
     ```sh
     npm run dev
     ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## 🗺️ Future Roadmap
-
-- [ ] Implement Firebase Auth for user login and registration.
-- [ ] Build the Firestore database model for user goals and portfolio data.
-- [ ] Configure `firebase.json` rewrite rules to serve the Next.js app via Cloud Functions.
-- [ ] Develop the "Stock Hunter" filtering UI and backend logic.
-- [ ] Build the secure IBKR Client Portal API integration (will run from a secure Cloud Function).
-- [ ] Add the `recharts` dashboard for "Target vs. Actual" portfolio visualization.
-- [ ] Set up a full CI/CD pipeline using **GitHub Actions** to automate testing and deployment (`firebase deploy`).
 
 ---
