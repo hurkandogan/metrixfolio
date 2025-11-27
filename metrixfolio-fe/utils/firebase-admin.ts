@@ -2,21 +2,28 @@ import 'server-only';
 import * as admin from 'firebase-admin';
 import { getApps } from 'firebase-admin/app';
 
-const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-
 if (!getApps().length) {
-  if (!serviceAccountJson) {
-    throw new Error(
-      'FIREBASE_SERVICE_ACCOUNT_JSON environment variable is not set.',
-    );
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (serviceAccountJson) {
+    try {
+      console.log('🔥 Admin: Starting with Local JSON...');
+      admin.initializeApp({
+        credential: admin.credential.cert(JSON.parse(serviceAccountJson)),
+      });
+    } catch (error) {
+      console.error('❌ Firebase Admin JSON Error:', error);
+    }
+  } else {
+    console.log('☁️ Admin: Starting with Cloud IAM (Default Credentials)...');
+    admin.initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      credential: admin.credential.applicationDefault(),
+    });
   }
-  admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(serviceAccountJson as string)),
-    databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`,
-  });
 }
 
 const adminDb = admin.firestore();
-const adminAuth = admin.auth(); // İleride lazım olur
+const adminAuth = admin.auth();
 
 export { adminDb, adminAuth };
