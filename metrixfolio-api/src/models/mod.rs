@@ -1,11 +1,9 @@
-pub mod settings_model;
-
-pub mod kraken;
-pub use kraken::KrakenBalance;
-
-pub mod ibkr;
-
 pub mod asset;
-pub use asset::Asset;
-
+pub mod ibkr;
+pub mod kraken;
 pub mod portfolio_view;
+pub mod settings_model;
+pub mod transaction;
+
+pub use asset::Asset;
+pub use kraken::KrakenBalance;

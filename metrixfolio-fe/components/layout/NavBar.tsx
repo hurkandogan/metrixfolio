@@ -49,14 +49,14 @@ export const NavBar = () => {
 
       if (res.ok) {
         const data = await res.json();
-        alert('BAŞARILI: ' + JSON.stringify(data));
+        alert('Success: ' + JSON.stringify(data));
       } else {
         const errorText = await res.text();
-        alert('HATA: ' + errorText);
+        alert('Error: ' + errorText);
       }
     } catch (error) {
       console.error(error);
-      alert('Baglanti hatasi!');
+      alert('Connection error!');
     }
   };
 
@@ -110,6 +110,14 @@ export const NavBar = () => {
                 className={`${currentPathName === '/positions' ? 'menu-active' : ''}`}
               >
                 Positions
+              </Link>
+            </li>
+            <li>
+              <Link
+                href={'/transactions'}
+                className={`${currentPathName === '/transactions' ? 'menu-active' : ''}`}
+              >
+                Transactions
               </Link>
             </li>
             <li>

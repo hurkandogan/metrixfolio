@@ -3,6 +3,7 @@ export enum CollectionType {
   SETTINGS = 'settings',
   CONFIG = 'configuration',
   ASSETS = 'assets',
+  MAIN = 'main',
 }
 
 export type CategoryType = 'ASSET' | 'CASH' | 'CRYPTO' | 'LIABILITY';

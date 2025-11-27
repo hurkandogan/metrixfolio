@@ -52,9 +52,9 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold">Dashboard</h1>
         <StatCards
           totalValue={portfolio?.total_value || 0}
-          currentTarget={0}
-          totalProfit={0}
-          profitPercentage={0}
+          currentTarget={10000}
+          totalProfit={portfolio?.total_pnl || 0}
+          profitPercentage={portfolio?.pnl_percentage || 0}
         />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

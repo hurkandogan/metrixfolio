@@ -1,6 +1,5 @@
 use crate::models::settings_model::PortfolioConfig;
-use crate::services::asset_service;
-use crate::services::calculation_service;
+use crate::services::{asset_service, calculation_service, transaction_service};
 use crate::state::AppState;
 use axum::{
     extract::State,
@@ -41,11 +40,14 @@ pub async fn get_portfolio_summary(
         .unwrap_or(None)
         .unwrap_or_default();
 
-    let assets = asset_service::get_all_assets(db, &user_id)
-        .await
-        .unwrap_or_default();
+    let (assets, transactions) = tokio::join!(
+        asset_service::get_all_assets(db, &user_id),
+        transaction_service::get_transactions(db, &user_id)
+    );
 
-    let summary = calculation_service::calculate_portfolio(assets, config);
+    let assets = assets.unwrap_or_default();
+
+    let summary = calculation_service::calculate_portfolio(assets, transactions, config);
 
     (StatusCode::OK, Json(summary)).into_response()
 }

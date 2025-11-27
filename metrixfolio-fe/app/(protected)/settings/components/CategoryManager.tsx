@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthProvider';
 import {
   addCategoryAction,
@@ -8,57 +8,61 @@ import {
   deleteCategoryAction,
 } from '@/actions/categories';
 import { Category } from '@/types/settings';
-import { FiTrash2 } from 'react-icons/fi';
+import { FiTrash2, FiPlus, FiLoader } from 'react-icons/fi';
+import useSWR from 'swr';
 
 export default function CategoryManager() {
   const { user } = useAuth();
-  const [categories, setCategories] = useState<Category[]>([]);
 
-  // Form State
   const [name, setName] = useState('');
   const [target, setTarget] = useState(0);
   const [type, setType] = useState('ASSET');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Yükleme
-  useEffect(() => {
-    if (user) {
-      getCategoriesAction(user.uid).then(setCategories);
-    }
-  }, [user]);
+  const {
+    data: categories = [],
+    error,
+    isLoading,
+    mutate,
+  } = useSWR(user ? ['categories', user.uid] : null, ([, uid]) =>
+    getCategoriesAction(uid),
+  );
 
-  // Ekleme
   const handleAdd = async () => {
-    if (!user) return;
-    setLoading(true);
+    if (!user || !name) return;
+    setIsSubmitting(true);
 
     const res = await addCategoryAction(user.uid, name, target, type);
 
-    if (res.success && res.category) {
-      setCategories([...categories, res.category]);
+    if (res.success) {
       setName('');
       setTarget(0);
+      mutate();
     } else {
       alert('Hata: ' + res.message);
     }
-    setLoading(false);
+    setIsSubmitting(false);
   };
 
-  // Silme
   const handleDelete = async (cat: Category) => {
-    if (!user || !confirm('Silmek istediğine emin misin?')) return;
+    if (!user || !confirm(`Delete "${cat.name}"?`)) return;
 
     const res = await deleteCategoryAction(user.uid, cat);
     if (res.success) {
-      setCategories(categories.filter((c) => c.id !== cat.id));
+      mutate();
+    } else {
+      alert('Hata: ' + res.message);
     }
   };
 
+  if (isLoading) return <div className="skeleton h-32 w-full"></div>;
+  if (error)
+    return <div className="alert alert-error">Failed to load categories</div>;
+
   return (
     <div className="space-y-6">
-      {/* FORM */}
-      <div className="bg-base-200 flex items-end gap-4 rounded-lg p-4">
-        <div className="form-control w-full max-w-xs">
+      <div className="bg-base-200 flex flex-wrap items-end gap-4 rounded-lg p-4">
+        <div className="form-control min-w-[200px] flex-1">
           <label className="label">
             <span className="label-text">Category Name</span>
           </label>
@@ -66,8 +70,8 @@ export default function CategoryManager() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="input input-bordered"
-            placeholder="Growth"
+            className="input input-bordered w-full"
+            placeholder="e.g. Growth Stocks"
           />
         </div>
 
@@ -79,20 +83,20 @@ export default function CategoryManager() {
             type="number"
             value={target}
             onChange={(e) => setTarget(Number(e.target.value))}
-            className="input input-bordered"
+            className="input input-bordered w-full"
           />
         </div>
 
-        <div className="form-control w-full max-w-xs">
+        <div className="form-control w-40">
           <label className="label">
             <span className="label-text">Type</span>
           </label>
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="select select-bordered"
+            className="select select-bordered w-full"
           >
-            <option value="ASSET">Stocks / ETF</option>
+            <option value="ASSET">Asset</option>
             <option value="CRYPTO">Crypto</option>
             <option value="CASH">Cash</option>
           </select>
@@ -101,29 +105,39 @@ export default function CategoryManager() {
         <button
           className="btn btn-primary"
           onClick={handleAdd}
-          disabled={loading}
+          disabled={isSubmitting || !name}
         >
-          {loading ? 'Adding...' : 'Add Category'}
+          {isSubmitting ? <FiLoader className="animate-spin" /> : <FiPlus />}
+          Add
         </button>
       </div>
 
-      {/* LİSTE */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {categories.length === 0 && (
+          <div className="col-span-full py-10 text-center opacity-50">
+            No categories found.
+          </div>
+        )}
+
         {categories.map((cat) => (
           <div
             key={cat.id}
-            className="card bg-base-100 border-base-300 border shadow-md"
+            className="card bg-base-100 border-base-300 border shadow-sm transition-shadow hover:shadow-md"
           >
             <div className="card-body flex-row items-center justify-between p-4">
               <div>
                 <h3 className="font-bold">{cat.name}</h3>
-                <div className="text-xs opacity-70">
-                  {cat.type} • Target: {cat.target_percentage}%
+                <div className="mt-1 flex gap-2 text-xs opacity-70">
+                  <span className="badge badge-sm badge-ghost">{cat.type}</span>
+                  <span className="badge badge-sm badge-neutral">
+                    {cat.target_percentage}% Target
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => handleDelete(cat)}
                 className="btn btn-ghost btn-sm text-error"
+                aria-label="Delete category"
               >
                 <FiTrash2 />
               </button>
