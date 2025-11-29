@@ -16,6 +16,7 @@ import {
 import { Asset } from '@/types/positions';
 import { Category } from '@/types/settings';
 import { getCategoriesAction } from '@/actions/categories';
+import AddManualAssetModal from './components/AddManualAssetsModal';
 
 export default function PositionsPage() {
   const { user } = useAuth();
@@ -66,6 +67,14 @@ export default function PositionsPage() {
     }
   };
 
+  const calculateMarketValue = (asset: Asset) => {
+    const price = asset.current_price;
+    const amount = asset.amount;
+    const multiplier = asset.multiplier || 1;
+    console.log(asset);
+    return price * amount * multiplier;
+  };
+
   const formatMoney = (val: string, currency: string) => {
     const num = parseFloat(val);
     if (isNaN(num)) return '-';
@@ -76,7 +85,6 @@ export default function PositionsPage() {
     }).format(num);
   };
 
-  // Backend'i Tetikleyen Fonksiyon (Sync All)
   const handleSync = async () => {
     if (!user) return;
     setSyncing(true);
@@ -151,10 +159,8 @@ export default function PositionsPage() {
 
           <div className="modal-action">
             <form method="dialog">
-              {/* Kapat Butonu */}
               <button className="btn btn-ghost">Cancel</button>
             </form>
-            {/* Kaydet Butonu */}
             <button
               className="btn btn-primary"
               onClick={handleSaveCategory}
@@ -169,7 +175,6 @@ export default function PositionsPage() {
         </form>
       </dialog>
 
-      {/* HEADER */}
       <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
         <div>
           <h1 className="text-3xl font-bold">Positions</h1>
@@ -177,17 +182,21 @@ export default function PositionsPage() {
             Manage your assets and categories
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={handleSync}
-          disabled={syncing}
-        >
-          <FiRefreshCw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Sync with Brokers'}
-        </button>
+        <div className="flex gap-2">
+          <AddManualAssetModal categories={categories} onSuccess={loadData} />
+          <button
+            className="btn btn-primary"
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            <FiRefreshCw
+              className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`}
+            />
+            {syncing ? 'Syncing...' : 'Sync with Brokers'}
+          </button>
+        </div>
       </div>
 
-      {/* INBOX SECTION (Uncategorized) */}
       {inboxAssets.length > 0 && (
         <div className="card bg-warning/10 border-warning/20 border shadow-sm">
           <div className="card-body">
@@ -206,6 +215,7 @@ export default function PositionsPage() {
                     <th>Source</th>
                     <th>Asset</th>
                     <th>Qty</th>
+                    <th>Price</th>
                     <th>Value (Est.)</th>
                     <th>Action</th>
                   </tr>
@@ -226,6 +236,12 @@ export default function PositionsPage() {
                       <td>
                         {formatMoney(
                           asset.current_price.toString(),
+                          asset.currency,
+                        )}
+                      </td>
+                      <td>
+                        {formatMoney(
+                          calculateMarketValue(asset).toString(),
                           asset.currency,
                         )}
                       </td>
@@ -265,6 +281,7 @@ export default function PositionsPage() {
                   <th className="text-right">Qty</th>
                   <th className="text-right">Avg Cost</th>
                   <th className="text-right">Price</th>
+                  <th className="text-right">Value (Est.)</th>
                   <th className="text-right">P/L</th>
                 </tr>
               </thead>
@@ -294,6 +311,12 @@ export default function PositionsPage() {
                     <td className="text-right font-mono">
                       {formatMoney(
                         asset.current_price.toString(),
+                        asset.currency,
+                      )}
+                    </td>
+                    <td className="text-right font-mono">
+                      {formatMoney(
+                        calculateMarketValue(asset).toString(),
                         asset.currency,
                       )}
                     </td>

@@ -7,6 +7,10 @@ pub struct Asset {
     pub name: String,
     pub amount: String,
     pub avg_cost: String,
+
+    #[serde(default = "default_multiplier")]
+    pub multiplier: String,
+
     pub cost_basis_money: String,
     pub currency: String,
     pub current_price: String,
@@ -14,4 +18,8 @@ pub struct Asset {
     pub source: String,
     pub category_id: String,
     pub updated_at: u64,
+}
+
+fn default_multiplier() -> String {
+    "1.0".to_string()
 }

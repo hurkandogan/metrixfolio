@@ -26,8 +26,8 @@ export default function TransactionManager() {
   const [formData, setFormData] = useState({
     type: 'DEPOSIT' as TransactionType,
     amount: '',
-    currency: 'USD', // Varsayılan
-    date: new Date().toISOString().split('T')[0], // Bugün
+    currency: 'USD',
+    date: new Date().toISOString().split('T')[0],
     note: '',
   });
 

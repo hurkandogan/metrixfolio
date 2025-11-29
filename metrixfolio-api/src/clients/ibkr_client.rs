@@ -54,6 +54,10 @@ impl IbkrClient {
             .await
             .map_err(|e| e.to_string())?;
 
+        if !res_init.contains("<FlexStatementResponse") {
+            return Err(format!("IBKR API Error (Not XML): {}", res_init).into());
+        }
+
         let ref_response: IbkrReferenceResponse =
             quick_xml::de::from_str(&res_init).map_err(|e| format!("XML Parsing Error: {}", e))?;
 
@@ -82,6 +86,10 @@ impl IbkrClient {
             .text()
             .await
             .map_err(|e| e.to_string())?;
+
+        if !xml_data.contains("<FlexQueryResponse") {
+            return Err(format!("IBKR Download Error (Not XML): {}", xml_data).into());
+        }
 
         println!("✅ IBKR XML Report Downloaded Successfully");
         Ok(xml_data)

@@ -40,12 +40,19 @@ pub async fn sync_ibkr_to_firestore(
             .cloned()
             .unwrap_or_else(|| "uncategorized".to_string());
 
+        let multiplier_val = if pos.multiplier == 0.0 {
+            1.0
+        } else {
+            pos.multiplier
+        };
+
         let asset = Asset {
             id: asset_id.clone(),
             symbol: pos.symbol.clone(),
             name: pos.description.clone(),
             amount: pos.quantity,
             avg_cost: pos.cost_basis_price,
+            multiplier: multiplier_val.to_string(),
             cost_basis_money: pos.cost_basis_money,
             currency: pos.currency,
             current_price: pos.mark_price,
@@ -89,6 +96,7 @@ pub async fn sync_ibkr_to_firestore(
             name: format!("Cash ({})", cash.currency),
             amount: cash.ending_settled_cash.to_string(),
             avg_cost: "1.0".to_string(),
+            multiplier: "1.0".to_string(),
             cost_basis_money: cash.ending_settled_cash.to_string(),
             currency: cash.currency.clone(),
             current_price: "1.0".to_string(),

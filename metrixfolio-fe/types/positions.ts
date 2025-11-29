@@ -10,6 +10,7 @@ export interface Asset {
   category_id: string;
   source: string;
   avg_cost: number;
+  multiplier: number;
   current_price: number;
   unrealized_pnl: number;
 }

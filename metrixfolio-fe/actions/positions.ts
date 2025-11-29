@@ -22,6 +22,7 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
         name: data.name || '',
         amount: parseFloat(data.amount) || 0,
         avg_cost: parseFloat(data.avg_cost) || 0,
+        multiplier: parseFloat(data.multiplier) || 1,
         current_price: parseFloat(data.current_price) || 0,
         unrealized_pnl: parseFloat(data.unrealized_pnl) || 0,
         currency: data.currency || 'USD',

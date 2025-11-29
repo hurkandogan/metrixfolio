@@ -78,6 +78,7 @@ pub async fn sync_kraken_to_firestore(
             name: display_name.to_string(),
             amount: amount_str,
             avg_cost: "0.0".to_string(),
+            multiplier: "1.0".to_string(),
             cost_basis_money: "0.0".to_string(),
             currency: "USD".to_string(),
             current_price: "0.0".to_string(),

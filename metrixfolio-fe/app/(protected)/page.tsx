@@ -6,6 +6,7 @@ import { AllocationChart } from '@/components/dashboard/AllocationChart';
 import { GoalTable } from '@/components/dashboard/GoalTable';
 import { useAuth } from '@/context/AuthProvider';
 import { usePortfolio } from '@/hooks/usePortfolio';
+import { CategoryCards } from '@/components/dashboard/CategoryCards';
 
 export default function Dashboard() {
   const { portfolio, isLoading, isError } = usePortfolio();
@@ -56,6 +57,10 @@ export default function Dashboard() {
           totalProfit={portfolio?.total_pnl || 0}
           profitPercentage={portfolio?.pnl_percentage || 0}
         />
+
+        {portfolio?.categories && (
+          <CategoryCards categories={portfolio.categories} />
+        )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">

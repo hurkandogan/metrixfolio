@@ -34,10 +34,12 @@ pub fn calculate_portfolio(
         let rate = 1.0;
         // -----------------------------
 
+        let multiplier = parse_f64(&asset.multiplier);
+        let multiplier = if multiplier == 0.0 { 1.0 } else { multiplier };
         // Value Calculation
         // If price is 0 (Kraken hasn't fetched price yet), we can assume cost as value
         // or accept 0. For now, 0.
-        let market_value = amount * price;
+        let market_value = amount * price * multiplier;
 
         let value_in_base = market_value * rate;
 

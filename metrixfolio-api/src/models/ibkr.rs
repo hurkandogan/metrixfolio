@@ -100,6 +100,9 @@ pub struct OpenPosition {
     #[serde(rename = "@position")]
     pub quantity: String,
 
+    #[serde(rename = "@multiplier")]
+    pub multiplier: f64,
+
     #[serde(rename = "@markPrice")]
     pub mark_price: String,
 
