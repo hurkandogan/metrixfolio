@@ -74,3 +74,30 @@ export async function deleteCategoryAction(userId: string, category: Category) {
     return { success: false, message: error.message };
   }
 }
+
+export async function updateCategoryAction(
+  userId: string,
+  updatedCategory: Category,
+) {
+  try {
+    const ref = getConfigRef(userId);
+
+    const doc = await ref.get();
+    if (!doc.exists) return { success: false, message: 'Config not found' };
+
+    const currentCategories = (doc.data()?.categories as Category[]) || [];
+
+    const newCategories = currentCategories.map((cat) =>
+      cat.id === updatedCategory.id ? updatedCategory : cat,
+    );
+
+    await ref.update({
+      categories: newCategories,
+    });
+
+    return { success: true, message: 'Kategori güncellendi' };
+  } catch (error: any) {
+    console.error('Update Error:', error);
+    return { success: false, message: error.message };
+  }
+}
