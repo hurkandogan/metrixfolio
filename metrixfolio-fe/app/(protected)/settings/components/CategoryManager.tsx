@@ -33,17 +33,14 @@ export default function CategoryManager() {
     getCategoriesAction(uid),
   );
 
-  // --- DÜZENLEME MODUNU AÇ ---
   const handleEditClick = (cat: Category) => {
     setEditingCategory(cat);
     setName(cat.name);
     setTarget(cat.target_percentage);
-    setType(cat.type as string); // Type cast gerekebilir
-    // Sayfayı yukarı kaydır (Form görünsün diye)
+    setType(cat.type as string);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // --- DÜZENLEME İPTAL ---
   const handleCancelEdit = () => {
     setEditingCategory(null);
     setName('');
@@ -51,7 +48,6 @@ export default function CategoryManager() {
     setType('ASSET');
   };
 
-  // --- KAYDETME (EKLEME veya GÜNCELLEME) ---
   const handleSubmit = async () => {
     if (!user || !name) return;
     setIsSubmitting(true);
@@ -59,28 +55,25 @@ export default function CategoryManager() {
     let res;
 
     if (editingCategory) {
-      // GÜNCELLEME
       res = await updateCategoryAction(user.uid, {
-        id: editingCategory.id, // ID aynı kalmalı!
+        id: editingCategory.id,
         name,
         target_percentage: target,
         type: type as any,
       });
     } else {
-      // YENİ EKLEME
       res = await addCategoryAction(user.uid, name, target, type);
     }
 
     if (res.success) {
-      handleCancelEdit(); // Formu temizle ve moddan çık
-      mutate(); // Listeyi tazele
+      handleCancelEdit();
+      mutate();
     } else {
       alert('Hata: ' + res.message);
     }
     setIsSubmitting(false);
   };
 
-  // Silme
   const handleDelete = async (cat: Category) => {
     if (!user || !confirm(`Delete "${cat.name}"?`)) return;
     const res = await deleteCategoryAction(user.uid, cat);
@@ -92,7 +85,6 @@ export default function CategoryManager() {
 
   return (
     <div className="space-y-6">
-      {/* --- FORM ALANI --- */}
       <div
         className={`flex flex-wrap items-end gap-4 rounded-lg border-2 p-4 transition-colors ${
           editingCategory
@@ -100,7 +92,6 @@ export default function CategoryManager() {
             : 'bg-base-200 border-transparent'
         }`}
       >
-        {/* Başlık (Düzenleme Modundaysa Göster) */}
         {editingCategory && (
           <div className="text-warning mb-2 flex w-full items-center gap-2 text-sm font-bold">
             <FiEdit2 /> Editing: {editingCategory.name}

@@ -88,3 +88,61 @@ jobs:
             --allow-unauthenticated \
             --set-secrets=KRAKEN_API_KEY=METRIXFOLIO_KRAKEN_KEY:latest,KRAKEN_API_SECRET=METRIXFOLIO_KRAKEN_SECRET:latest,GOOGLE_SHEET_CSV_URL=METRIXFOLIO_GOOGLE_SHEET_URL:latest,IBKR_TOKEN=METRIXFOLIO_IBKR_TOKEN:latest,IBKR_QUERY_ID=METRIXFOLIO_IBKR_QUERY_ID:latest,TWELVE_DATA_API_KEY=METRIXFOLIO_TWELVE_DATA_API_KEY:latest \
             --set-env-vars=FIREBASE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+
+  deploy-broadcaster:
+    name: Deploy Broadcaster
+    runs-on: ubuntu-latest
+    #needs: [deploy-frontend, deploy-backend]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ env.GCP_SA_KEY }}'
+
+      - name: Setup Google Cloud CLI
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Get Tag Name
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        
+      - name: Build and Push Broadcaster Image
+        run: |
+          # Docker Repo and Image Name
+          export BROADCASTER_IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.API_IMAGE_REPO }}/broadcaster:${{ steps.get_tag.outputs.TAG_NAME }}"
+          
+          echo "Building image: $BROADCASTER_IMAGE"
+          
+          cd broadcaster
+          docker build -t $BROADCASTER_IMAGE .
+          
+          echo "Pushing image: $BROADCASTER_IMAGE"
+          docker push $BROADCASTER_IMAGE
+
+      - name: Deploy Broadcaster to Cloud Run
+        run: |
+          export BROADCASTER_IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.API_IMAGE_REPO }}/broadcaster:${{ steps.get_tag.outputs.TAG_NAME }}"
+          
+          gcloud run deploy broadcaster \
+            --image $BROADCASTER_IMAGE \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-secrets=TELEGRAM_BOT_TOKEN=METRIXFOLIO_TELEGRAM_TOKEN:latest,TELEGRAM_CHANNEL_ID=METRIXFOLIO_TELEGRAM_CHANNEL_ID:latest,NOTIFIER_API_SECRET=METRIXFOLIO_NOTIFIER_SECRET:latest
+
+      - name: Notify Telegram (Deployment Success)
+        run: |
+          # Broadcaster URL'ini dinamik alalım
+          SERVICE_URL=$(gcloud run services describe broadcaster --region ${{ env.GCP_REGION }} --format 'value(status.url)')
+          
+          curl -X POST $SERVICE_URL/tlg-send-message \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.NOTIFIER_API_SECRET }}" \
+          -d '{"text": "✅ *Deployment Completed!*\n\nFrontend, Backend, and Broadcaster have been updated. 🚀"}'
