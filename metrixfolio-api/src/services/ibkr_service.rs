@@ -1,6 +1,7 @@
 use crate::models::Asset;
 use crate::models::ibkr::FlexQueryResponse;
 use crate::services::asset_service;
+use crate::utils::market_utils::{normalize_symbol, sanitize_id};
 use firestore::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -32,7 +33,20 @@ pub async fn sync_ibkr_to_firestore(
         .as_secs();
 
     for pos in positions {
-        let clean_symbol = sanitize_id(&pos.symbol);
+        let mut final_symbol = pos.symbol.clone();
+
+        if (pos.listing_exchange == "IBIS" || pos.listing_exchange == "IBIS2")
+            && !pos.underlying_symbol.is_empty()
+        {
+            final_symbol =
+                normalize_symbol(&pos.symbol, &pos.underlying_symbol, &pos.listing_exchange);
+            println!(
+                "🔄 Symbol Normalized: {} -> {} (Exchange: {})",
+                pos.symbol, final_symbol, pos.listing_exchange
+            );
+        }
+
+        let clean_symbol = sanitize_id(&final_symbol);
         let asset_id = format!("IBKR_{}", clean_symbol);
 
         let category_id = existing_assets_map
@@ -48,7 +62,7 @@ pub async fn sync_ibkr_to_firestore(
 
         let asset = Asset {
             id: asset_id.clone(),
-            symbol: pos.symbol.clone(),
+            symbol: final_symbol,
             name: pos.description.clone(),
             amount: pos.quantity,
             avg_cost: pos.cost_basis_price,
@@ -124,11 +138,4 @@ pub async fn sync_ibkr_to_firestore(
 
     println!("INFO: Sync process finished.");
     Ok(())
-}
-
-fn sanitize_id(input: &str) -> String {
-    input
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect()
 }

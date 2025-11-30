@@ -31,4 +31,5 @@ quick-xml = {version = "0.38.4", features = ["serialize"] }
 firestore = {version = "0.47.0"}
 firebase-auth = "0.5.1"
 futures = "0.3.31"
+yahoo_finance_api = "4.1.0"
 

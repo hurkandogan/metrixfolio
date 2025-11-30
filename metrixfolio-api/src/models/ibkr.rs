@@ -117,6 +117,12 @@ pub struct OpenPosition {
 
     #[serde(rename = "@description")]
     pub description: String,
+
+    #[serde(rename = "@underlyingSymbol")]
+    pub underlying_symbol: String,
+
+    #[serde(rename = "@listingExchange")]
+    pub listing_exchange: String,
 }
 
 #[derive(Debug, Deserialize)]

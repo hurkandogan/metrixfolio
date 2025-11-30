@@ -15,6 +15,7 @@ pub fn calculate_portfolio(
     assets: Vec<Asset>,
     transactions: Vec<Transaction>,
     config: PortfolioConfig,
+    current_prices: &HashMap<String, f64>,
 ) -> PortfolioSummary {
     let net_invested_map = transaction_service::calculate_net_investment(&transactions);
     let mut total_value = 0.0;
@@ -26,7 +27,14 @@ pub fn calculate_portfolio(
 
     for asset in &assets {
         let amount = parse_f64(&asset.amount);
-        let price = parse_f64(&asset.current_price);
+
+        let live_price = current_prices.get(&asset.symbol).copied();
+
+        let price = if let Some(p) = live_price {
+            p
+        } else {
+            parse_f64(&asset.current_price)
+        };
 
         // TODO: Currency conversion
         // For now accept 1:1 rate
@@ -60,7 +68,6 @@ pub fn calculate_portfolio(
         total_invested_base += amount * rate;
     }
 
-    // 2. Analyze Categories
     let mut categories_view = Vec::new();
 
     for cat_conf in config.categories {
