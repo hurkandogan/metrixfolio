@@ -20,8 +20,8 @@ app.get('/', (c) => {
   return c.text('Bot is running, healthy and secure!');
 });
 
-app.route('/telegram', telegram);
-app.route('/scheduler', index_broadcaster);
+app.route('/api/v1/telegram', telegram);
+app.route('/api/v1/scheduler', index_broadcaster);
 
 serve(
   {
