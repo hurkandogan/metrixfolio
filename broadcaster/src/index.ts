@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import 'dotenv/config';
 import { bearerAuth } from 'hono/bearer-auth';
 import telegram from './routes/telegram.js';
+import index_broadcaster from './routes/index-broadcaster.js';
 
 const app = new Hono();
 
@@ -20,6 +21,7 @@ app.get('/', (c) => {
 });
 
 app.route('/telegram', telegram);
+app.route('/scheduler', index_broadcaster);
 
 serve(
   {

@@ -1,7 +1,3 @@
-// src/utils/market_utils.rs
-
-/// Borsaya göre Yahoo Finance sonekini (suffix) bulur.
-/// Bu fonksiyonu ileride eToro veya diğer kaynaklar için de kullanabilirsin.
 pub fn get_yahoo_suffix(exchange: &str) -> &str {
     match exchange {
         // Germany (Xetra, Frankfurt)
