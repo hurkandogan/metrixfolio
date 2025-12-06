@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { sendTelegramMessage } from '../services/telegram.js';
 
 const telegram = new Hono();
 
@@ -14,23 +15,11 @@ telegram.post('/send-message', async (c) => {
 
     if (!message) return c.json({ error: 'Message cannot be empty!' }, 400);
 
-    const url = `https://api.telegram.org/bot${TLG_TOKEN}/sendMessage`;
+    const result = await sendTelegramMessage(message);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: TLG_CHANNEL_ID,
-        text: `${message}`,
-        parse_mode: 'Markdown',
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!result.ok) {
+    if (!result.success) {
       console.error('Telegram error:', result);
-      return c.json({ success: false, error: result.description }, 500);
+      return c.json({ success: false, error: result.error }, 500);
     }
 
     return c.json({ success: true, message: 'Message sent to channel!' });

@@ -1,23 +1,57 @@
 import { Hono } from 'hono';
+import { sendTelegramMessage } from '../services/telegram.js';
+import markets from '../data/market.json' with { type: 'json' };
 
-const index_broadcaster = new Hono();
+const scheduler = new Hono();
 
-index_broadcaster.post('/trigger', async (c) => {
+scheduler.post('/trigger', async (c) => {
   const now = new Date();
-  const hour = now.getUTCHours();
-  const minute = now.getUTCMinutes();
 
-  console.log(`⏰ Scheduler triggered! Time (UTC): ${hour}:${minute}`);
+  console.log(`⏰ Tick: ${now.toISOString()}`);
+  const results = [];
 
-  // LOGIC WILL COME HERE LATER:
-  // if (hour === 14 && minute === 30) -> Send US Market Open Message
-  // if (hour === 8 && minute === 0) -> Send EU Market Open Message
+  for (const [region, config] of Object.entries(markets)) {
+    const localTimeStr = now.toLocaleString('en-US', {
+      timeZone: config.timezone,
+    });
+    const localDate = new Date(localTimeStr);
+
+    const day = localDate.getDay();
+    const hour = localDate.getHours();
+    const minute = localDate.getMinutes();
+
+    const dateString = localDate.toISOString().split('T')[0];
+
+    console.log(`🌍 ${region}: ${hour}:${minute} (Day: ${day})`);
+
+    if (day === 0 || day === 6) continue;
+    if (config.holidays.includes(dateString)) continue;
+
+    if (
+      hour === config.open_hour &&
+      minute >= config.open_minute &&
+      minute < config.open_minute + 5
+    ) {
+      await sendTelegramMessage(`🔔 *${config.name} (${region})* opened! 📈`);
+      results.push(`${region} OPEN sent`);
+    }
+
+    if (
+      hour === config.close_hour &&
+      minute >= config.close_minute &&
+      minute < config.close_minute + 5
+    ) {
+      await sendTelegramMessage(`🏁 *${config.name} (${region})* closed.`);
+      results.push(`${region} CLOSE sent`);
+    }
+  }
+
+  sendTelegramMessage(`🏁 Trigger is working!.`);
 
   return c.json({
     status: 'success',
-    time: `${hour}:${minute}`,
-    message: 'Timer is triggered successfully!',
+    actions: results.length > 0 ? results : 'No market events',
   });
 });
 
-export default index_broadcaster;
+export default scheduler;

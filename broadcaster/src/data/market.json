@@ -1,0 +1,27 @@
+{
+  "US": {
+    "name": "New York Stock Exchange",
+    "timezone": "America/New_York",
+    "open_hour": 9,
+    "open_minute": 30,
+    "close_hour": 16,
+    "close_minute": 0,
+    "holidays": [
+      "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18",
+      "2025-05-26", "2025-06-19", "2025-07-04", "2025-09-01",
+      "2025-11-27", "2025-12-25"
+    ]
+  },
+  "EU": {
+    "name": "Deutsche Börse (Xetra)",
+    "timezone": "Europe/Berlin",
+    "open_hour": 9,
+    "open_minute": 0,
+    "close_hour": 17,
+    "close_minute": 30,
+    "holidays": [
+      "2025-01-01", "2025-04-18", "2025-04-21", "2025-05-01",
+      "2025-12-24", "2025-12-25", "2025-12-26", "2025-12-31"
+    ]
+  }
+}
