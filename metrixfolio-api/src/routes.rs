@@ -1,7 +1,8 @@
-use crate::handlers::root_handler;
 use crate::handlers::{
-    portfolio_handler::get_portfolio_summary, sync_handler::trigger_sync_handler,
+    portfolio_handler::get_portfolio_summary, public_data_handler::get_market_prices_handler,
+    sync_handler::trigger_sync_handler,
 };
+use crate::handlers::{public_data_handler, root_handler};
 use crate::state::AppState;
 use axum::http::HeaderValue;
 use axum::{
@@ -29,6 +30,7 @@ pub fn create_router(app_state: AppState) -> Router {
         .route("/", get(root_handler))
         .route("/api/v1/sync/all", post(trigger_sync_handler))
         .route("/api/v1/portfolio/summary", get(get_portfolio_summary))
+        .route("/api/v1/market/prices", post(get_market_prices_handler))
         .with_state(app_state.clone());
 
     Router::new().merge(protected_routes).layer(cors_layer)
