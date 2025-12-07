@@ -1,5 +1,5 @@
 use reqwest::Client;
-use serde::Deserialize;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -9,17 +9,6 @@ const BASE_URL: &str = "https://api.twelvedata.com";
 pub struct TwelveDataClient {
     http_client: Client,
     api_key: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PriceResponse {
-    pub price: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ErrorResponse {
-    pub code: u16,
-    pub message: String,
 }
 
 impl TwelveDataClient {
@@ -52,26 +41,32 @@ impl TwelveDataClient {
             .map_err(|e| e.to_string())?;
         let resp_text = response.text().await.map_err(|e| e.to_string())?;
 
-        if resp_text.contains(r#""code":"#) && resp_text.contains(r#""message":"#) {
-            return Err(format!("API Error: {}", resp_text).into());
-        }
+        let json_value: Value =
+            serde_json::from_str(&resp_text).map_err(|e| format!("JSON Parse Error: {}", e))?;
 
         let mut prices = HashMap::new();
 
-        if symbols.contains(',') {
-            let batch_data: HashMap<String, PriceResponse> = serde_json::from_str(&resp_text)
-                .map_err(|e| format!("JSON Parse Error (Batch): {} | Text: {}", e, resp_text))?;
-
-            for (sym, data) in batch_data {
-                let price = data.price.parse::<f64>().unwrap_or(0.0);
-                prices.insert(sym, price);
+        if let Some(price_str) = json_value.get("price").and_then(|v| v.as_str()) {
+            if let Ok(price) = price_str.parse::<f64>() {
+                prices.insert(symbols.to_string(), price);
             }
-        } else {
-            let single_data: PriceResponse = serde_json::from_str(&resp_text)
-                .map_err(|e| format!("JSON Parse Error (Single): {} | Text: {}", e, resp_text))?;
+            return Ok(prices);
+        }
 
-            let price = single_data.price.parse::<f64>().unwrap_or(0.0);
-            prices.insert(symbols.to_string(), price);
+        if let Some(obj) = json_value.as_object() {
+            for (sym, val) in obj {
+                if let Some(price_str) = val.get("price").and_then(|v| v.as_str()) {
+                    if let Ok(price) = price_str.parse::<f64>() {
+                        prices.insert(sym.clone(), price);
+                    }
+                } else if let Some(code) = val.get("code") {
+                    println!("⚠️ Twelve Data Warning for {}: Error Code {}", sym, code);
+                }
+            }
+        }
+
+        if prices.is_empty() && resp_text.contains("\"code\":") && !symbols.contains(',') {
+            return Err(format!("API Error (Single): {}", resp_text));
         }
 
         Ok(prices)

@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use crate::models::currency::CurrencyRate;
 use crate::models::settings_model::PortfolioConfig;
 use crate::services::{
     asset_service, calculation_service, market_data_service, transaction_service,
@@ -54,6 +57,21 @@ pub async fn get_portfolio_summary(
 
     let assets = assets.unwrap_or_default();
 
+    let currencies_stream = db
+        .fluent()
+        .select()
+        .from("currencies")
+        .obj::<CurrencyRate>() // Modelini kullan
+        .query()
+        .await;
+
+    let mut rates_map = HashMap::new();
+    if let Ok(list) = currencies_stream {
+        for r in list {
+            rates_map.insert(r.from, r.rate);
+        }
+    }
+
     let mut symbols_to_fetch = Vec::new();
     for asset in &assets {
         if asset.source == "MANUAL" || asset.category_id == "Cash" {
@@ -91,8 +109,13 @@ pub async fn get_portfolio_summary(
     )
     .await;
 
-    let summary =
-        calculation_service::calculate_portfolio(assets, transactions, config, &current_prices);
+    let summary = calculation_service::calculate_portfolio(
+        assets,
+        transactions,
+        config,
+        &current_prices,
+        &rates_map,
+    );
 
     (StatusCode::OK, Json(summary)).into_response()
 }

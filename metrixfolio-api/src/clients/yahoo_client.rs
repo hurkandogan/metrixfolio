@@ -20,7 +20,12 @@ impl YahooClient {
         for symbol in symbols {
             println!("🌍 Yahoo Finance Request: {}", symbol);
 
-            match self.provider.get_latest_quotes(&symbol, "1d").await {
+            let search_symbol = match symbol.as_str() {
+                s if s.contains("/") => s.replace("/", "-"),
+                _ => symbol.clone(),
+            };
+
+            match self.provider.get_latest_quotes(&search_symbol, "1d").await {
                 Ok(response) => {
                     let quote = response.last_quote();
                     if let Ok(q) = quote {

@@ -140,5 +140,8 @@ pub struct ConversionRate {
     pub to_currency: String,
 
     #[serde(rename = "@rate")]
-    pub rate: String,
+    pub rate: f64,
+
+    #[serde(rename = "@reportDate")]
+    pub report_date: String,
 }

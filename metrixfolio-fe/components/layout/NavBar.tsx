@@ -9,12 +9,14 @@ import { auth } from '@/utils/firebase';
 // icons
 import { FiMoon, FiSun, FiLogOut, FiDatabase } from 'react-icons/fi';
 import { useAuth } from '@/context/AuthProvider';
+import { useCurrency } from '@/context/CurrencyContext';
 
 export const NavBar = () => {
   const { theme, toggleTheme } = useTheme();
   const currentPathName = usePathname();
   const logoutModalRef = useRef<HTMLDialogElement>(null);
-  const test = useAuth();
+  const authInfo = useAuth();
+  const { currency, setCurrency } = useCurrency();
 
   const handleLogoutConfirm = async () => {
     logoutModalRef.current?.close();
@@ -27,7 +29,7 @@ export const NavBar = () => {
   };
 
   const handleSync = async () => {
-    const user = test.user;
+    const user = authInfo.user;
 
     if (!user) {
       console.error('No user found for sync.');
@@ -133,6 +135,17 @@ export const NavBar = () => {
 
         {/* End */}
         <div className="navbar-end">
+          <select
+            className="select select-ghost select-sm mr-2 w-25 font-bold"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value as any)}
+          >
+            <option value="USD">🇺🇸 USD</option>
+            <option value="EUR">🇪🇺 EUR</option>
+            <option value="TRY">🇹🇷 TRY</option>
+            {/* <option value="GBP">🇬🇧 GBP</option> */}
+          </select>
+
           <label className="swap swap-rotate btn btn-ghost btn-circle">
             <input
               type="checkbox"
@@ -146,11 +159,6 @@ export const NavBar = () => {
             <FiMoon className="swap-off h-6 w-6 fill-current" />
           </label>
 
-          {/*        <button className="btn btn-primary ml-2" onClick={() => handleSync()}>
-            <FiDatabase className="h-5 w-5" />
-            Test IBKR
-          </button>
-*/}
           <button
             className="btn btn-primary ml-2"
             onClick={() => logoutModalRef.current?.showModal()}

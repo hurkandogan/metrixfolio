@@ -9,6 +9,7 @@ import { AuthProvider } from '@/context/AuthProvider';
 // components
 import { NavBar } from '@/components/layout/NavBar';
 import { Footer } from '@/components/layout/Footer';
+import { CurrencyProvider } from '@/context/CurrencyContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -30,7 +31,9 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <CurrencyProvider>{children}</CurrencyProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

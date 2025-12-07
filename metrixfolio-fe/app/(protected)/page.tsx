@@ -53,7 +53,7 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold">Dashboard</h1>
         <StatCards
           totalValue={portfolio?.total_value || 0}
-          currentTarget={10000}
+          currentTarget={portfolio?.total_cost || 0}
           totalProfit={portfolio?.total_pnl || 0}
           profitPercentage={portfolio?.pnl_percentage || 0}
         />
@@ -62,19 +62,14 @@ export default function Dashboard() {
           <CategoryCards categories={portfolio.categories} />
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <GoalTable
-              startingAmount={200}
-              steps={50}
-              currentValue={portfolio?.total_value || 0}
-              growthRate={0}
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <AllocationChart title="Target Allocation" data={targetChartData} />
+          <AllocationChart title="Actual Allocation" data={actualChartData} />
+        </div>
 
-          <div className="flex flex-col gap-6">
-            <AllocationChart title="Target" data={targetChartData} />
-            <AllocationChart title="Actual" data={actualChartData} />
+        <div className="w-full">
+          <div className="lg:col-span-2">
+            <GoalTable currentValue={portfolio?.total_value || 0} />
           </div>
         </div>
       </div>

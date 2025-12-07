@@ -136,6 +136,36 @@ pub async fn sync_ibkr_to_firestore(
         }
     }
 
+    let conversion_rates = response.flex_statements.statement.conversion_rates.rates;
+
+    if !conversion_rates.is_empty() {
+        println!(
+            "💱 Updating {} currency rates from IBKR...",
+            conversion_rates.len()
+        );
+
+        for rate in conversion_rates {
+            let doc_id = format!("{}_{}", rate.from_currency, rate.to_currency);
+
+            let rate_data = serde_json::json!({
+                "from": rate.from_currency,
+                "to": rate.to_currency,
+                "rate": rate.rate,
+                "date": rate.report_date,
+                "source": "IBKR_XML"
+            });
+
+            let _ = db
+                .fluent()
+                .update()
+                .in_col("currencies")
+                .document_id(&doc_id)
+                .object(&rate_data)
+                .execute::<()>()
+                .await;
+        }
+    }
+
     println!("INFO: Sync process finished.");
     Ok(())
 }

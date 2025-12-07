@@ -53,6 +53,13 @@ export function usePortfolio() {
       : null,
 
     ([url]) => fetcherWithAuth(url),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      refreshInterval: 0,
+      dedupingInterval: 300000,
+      keepPreviousData: true,
+    },
   );
 
   return {

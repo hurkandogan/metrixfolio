@@ -17,6 +17,8 @@ import {
   FiCalendar,
   FiDollarSign,
 } from 'react-icons/fi';
+import { getExchangeRatesAction } from '@/actions/currency';
+import { CurrencyConverter } from '@/utils/currency-math';
 
 export default function TransactionManager() {
   const { user } = useAuth();
@@ -39,15 +41,28 @@ export default function TransactionManager() {
     getTransactionsAction(uid),
   );
 
+  const { data: rates = [] } = useSWR('exchange_rates', getExchangeRatesAction);
+
   const stats = useMemo(() => {
+    if (!transactions.length || !rates.length) {
+      return { deposits: 0, withdrawals: 0, net: 0 };
+    }
+
+    const converter = new CurrencyConverter(rates);
+    const TARGET_CURRENCY = 'USD';
+
     let deposits = 0;
     let withdrawals = 0;
 
     transactions.forEach((t) => {
-      // only USD for now
-      //TODO: multi-currency support
-      if (t.type === 'DEPOSIT') deposits += t.amount;
-      else withdrawals += t.amount;
+      const valueInUsd = converter.convert(
+        t.amount,
+        t.currency,
+        TARGET_CURRENCY,
+      );
+
+      if (t.type === 'DEPOSIT') deposits += valueInUsd;
+      else withdrawals += valueInUsd;
     });
 
     return {
@@ -55,7 +70,7 @@ export default function TransactionManager() {
       withdrawals,
       net: deposits - withdrawals,
     };
-  }, [transactions]);
+  }, [transactions, rates]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
