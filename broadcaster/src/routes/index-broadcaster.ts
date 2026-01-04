@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { sendTelegramMessage } from '../services/telegram.js';
 import { MarketDataService } from '../services/marketDataServices.js';
 import marketsData from '../data/market.json' with { type: 'json' };
+import { type MarketPriceData as PriceData } from '../services/marketDataServices.js';
 
 type MarketIndex = { symbol: string; label: string, currency?: string };
 type MarketConfig = {
@@ -38,6 +39,7 @@ scheduler.post('/trigger', async (c) => {
 
     console.log(`🌍 ${region}: ${hour}:${minute} (Day: ${day})`);
 
+    // No weekends
     if (day === 0 || day === 6) continue;
     if (config.holidays.includes(dateString)) continue;
 
@@ -64,26 +66,17 @@ scheduler.post('/trigger', async (c) => {
       results.push(`${region} OPEN sent`);
     }
 
+    // --- MARKET CLOSING (DEVRE DISI) ---
+    // Kapanis saatlerindeki degiskenlik nedeniyle simdilik kapattik.
+    /*
     if (
       hour === config.close_hour &&
       minute >= config.close_minute &&
       minute < config.close_minute + 5
     ) {
-      console.log(`🏁 ${region} Market Closing detected!`);
-
-      const symbols = config.indices.map((i) => i.symbol);
-      const prices = await marketService.getPrices(symbols);
-      const msg = generateMessage(
-        region,
-        config.name,
-        'CLOSE',
-        config.indices,
-        prices
-      );
-
-      await sendTelegramMessage(msg);
-      results.push(`${region} CLOSE sent`);
+      // ... Kapanis kodlari ...
     }
+    */
   }
 
   return c.json({
@@ -97,7 +90,7 @@ function generateMessage(
   marketName: string,
   status: 'OPEN' | 'CLOSE',
   indices: MarketIndex[],
-  prices: Record<string, number>
+  prices: Record<string, PriceData>
 ): string {
   const flag = region === 'US' ? '🇺🇸' : region === 'EU' ? '🇪🇺' : '🌍';
   const statusIcon = status === 'OPEN' ? '🔔' : '🏁';
@@ -106,13 +99,25 @@ function generateMessage(
   let message = `${statusIcon} ${flag} *${marketName} ${statusText}*\n\n`;
 
   indices.forEach((idx) => {
-    const price = prices[idx.symbol];
+    const data = prices[idx.symbol];
+    const currency = idx.currency || 'USD';
 
-    if (price) {
-      // TODO: add pnl calculation with colored arrows
-      message += `▫️ *${idx.label}:* ${price.toFixed(2)}${idx.currency}\n`;
-    }  else {
-      message += `▫️ *${idx.currency} ${idx.label}:* (undefined)\n`;
+    if (data && data.price) {
+      const formattedPrice = new Intl.NumberFormat('en-US', {
+        style: 'decimal', 
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(data.price);
+      
+      const isPositive = data.changePercent >= 0;
+      const sign = isPositive ? '+' : '';
+      const formattedChange = `(${sign}${data.changePercent.toFixed(2)}%)`;
+
+      const arrow = isPositive ? '🟢' : '🔴';
+
+      message += `▫️ *${idx.label}:* ${formattedPrice}${currency} ${formattedChange} ${arrow}\n`;
+    } else {
+      message += `▫️ *${idx.label}:* (No Data)\n`;
     }
   });
 

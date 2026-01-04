@@ -101,7 +101,7 @@ pub async fn get_portfolio_summary(
         symbols_to_fetch.push(query_symbol);
     }
 
-    let current_prices = market_data_service::get_market_prices(
+    let detailed_prices = market_data_service::get_market_prices(
         db,
         &state.twelve_data_client,
         &state.yahoo_client,
@@ -109,11 +109,16 @@ pub async fn get_portfolio_summary(
     )
     .await;
 
+    let mut simple_prices: HashMap<String, f64> = HashMap::new();
+    for (symbol, data) in &detailed_prices {
+        simple_prices.insert(symbol.clone(), data.price);
+    }
+
     let summary = calculation_service::calculate_portfolio(
         assets,
         transactions,
         config,
-        &current_prices,
+        &simple_prices,
         &rates_map,
     );
 

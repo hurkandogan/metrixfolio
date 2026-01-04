@@ -1,3 +1,4 @@
+use crate::handlers::public_data_handler::get_market_prices_detailed_handler;
 use crate::handlers::{
     portfolio_handler::get_portfolio_summary, public_data_handler::get_market_prices_handler,
     sync_handler::trigger_sync_handler,
@@ -31,6 +32,10 @@ pub fn create_router(app_state: AppState) -> Router {
         .route("/api/v1/sync/all", post(trigger_sync_handler))
         .route("/api/v1/portfolio/summary", get(get_portfolio_summary))
         .route("/api/v1/market/prices", post(get_market_prices_handler))
+        .route(
+            "/api/v1/market/prices/detailed",
+            post(get_market_prices_detailed_handler),
+        )
         .with_state(app_state.clone());
 
     Router::new().merge(protected_routes).layer(cors_layer)

@@ -1,7 +1,10 @@
 use crate::clients::{twelve_data_client::TwelveDataClient, yahoo_client::YahooClient};
 use crate::models::market_data::MarketData;
+// DIKKAT: Client'larin dondugu struct'i da import etmemiz lazim
+use crate::models::market_data::TickerInfo;
 use firestore::*;
 use futures::stream::StreamExt;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -9,12 +12,28 @@ use tokio::time::{Duration, sleep};
 
 const CACHE_DURATION_SECONDS: u64 = 15 * 60;
 
+#[derive(Serialize, Clone, Debug)]
+pub struct MarketPriceData {
+    pub price: f64,
+    #[serde(rename = "changePercent")]
+    pub change_percent: f64,
+}
+
+impl From<TickerInfo> for MarketPriceData {
+    fn from(info: TickerInfo) -> Self {
+        Self {
+            price: info.price,
+            change_percent: info.change_percent,
+        }
+    }
+}
+
 pub async fn get_market_prices(
     db: &FirestoreDb,
     client: &TwelveDataClient,
     yahoo_client: &YahooClient,
     symbols: Vec<String>,
-) -> HashMap<String, f64> {
+) -> HashMap<String, MarketPriceData> {
     let project_id = env::var("FIREBASE_PROJECT_ID").unwrap_or("metrixfolio".to_string());
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -34,7 +53,7 @@ pub async fn get_market_prices(
         .stream_query()
         .await;
 
-    let mut price_map: HashMap<String, f64> = HashMap::new();
+    let mut price_map: HashMap<String, MarketPriceData> = HashMap::new();
     let mut symbols_to_fetch: Vec<String> = Vec::new();
 
     let cached_list: Vec<MarketData> = match cached_data_stream {
@@ -54,7 +73,13 @@ pub async fn get_market_prices(
             if now - md.last_updated > CACHE_DURATION_SECONDS {
                 true
             } else {
-                price_map.insert(clean_sym_for_cache, md.price);
+                price_map.insert(
+                    clean_sym_for_cache,
+                    MarketPriceData {
+                        price: md.price,
+                        change_percent: md.change_percent,
+                    },
+                );
                 false
             }
         } else {
@@ -67,7 +92,7 @@ pub async fn get_market_prices(
     }
 
     if !symbols_to_fetch.is_empty() {
-        let mut fetched_prices: HashMap<String, f64> = HashMap::new();
+        let mut fetched_data: HashMap<String, MarketPriceData> = HashMap::new();
 
         for chunk in symbols_to_fetch.chunks(8) {
             let query_string = chunk.join(",");
@@ -78,9 +103,10 @@ pub async fn get_market_prices(
 
             match client.fetch_prices(&query_string).await {
                 Ok(new_prices) => {
-                    for (sym, price) in new_prices {
+                    for (sym, info) in new_prices {
                         let clean_sym = sym.replace("/USD", "");
-                        fetched_prices.insert(clean_sym, price);
+
+                        fetched_data.insert(clean_sym, MarketPriceData::from(info));
                     }
                 }
                 Err(e) => eprintln!("❌ Twelve Data API Error: {}", e),
@@ -93,12 +119,11 @@ pub async fn get_market_prices(
             .iter()
             .filter(|s| {
                 let clean_s = s.replace("/USD", "");
-                !fetched_prices.contains_key(&clean_s)
+                !fetched_data.contains_key(&clean_s)
             })
             .cloned()
             .collect();
 
-        // YAHOO FINANCE (Backup Power!)
         if !missing_symbols.is_empty() {
             println!(
                 "⚠️ Twelve Data missed some symbols. Trying Yahoo for: {:?}",
@@ -107,15 +132,18 @@ pub async fn get_market_prices(
 
             let yahoo_prices = yahoo_client.fetch_prices(&missing_symbols).await;
 
-            fetched_prices.extend(yahoo_prices);
+            for (sym, info) in yahoo_prices {
+                fetched_data.insert(sym, MarketPriceData::from(info));
+            }
         }
 
-        for (sym, price) in fetched_prices {
-            price_map.insert(sym.clone(), price);
+        for (sym, data) in fetched_data {
+            price_map.insert(sym.clone(), data.clone());
 
             let md = MarketData {
                 symbol: sym.clone(),
-                price,
+                price: data.price,
+                change_percent: data.change_percent,
                 currency: "USD".to_string(),
                 last_updated: now,
                 source: "HYBRID".to_string(),

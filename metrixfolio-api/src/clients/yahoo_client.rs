@@ -2,6 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::time::{Duration, sleep};
 use yahoo_finance_api::YahooConnector;
 
+use crate::models::market_data::TickerInfo;
+
 #[derive(Clone)]
 pub struct YahooClient {
     provider: Arc<YahooConnector>,
@@ -14,7 +16,7 @@ impl YahooClient {
         }
     }
 
-    pub async fn fetch_prices(&self, symbols: &[String]) -> HashMap<String, f64> {
+    pub async fn fetch_prices(&self, symbols: &[String]) -> HashMap<String, TickerInfo> {
         let mut results = HashMap::new();
 
         for symbol in symbols {
@@ -27,10 +29,25 @@ impl YahooClient {
 
             match self.provider.get_latest_quotes(&search_symbol, "1d").await {
                 Ok(response) => {
-                    let quote = response.last_quote();
-                    if let Ok(q) = quote {
-                        results.insert(symbol.clone(), q.close);
-                        println!("✅ Yahoo Found: {} -> {}", symbol, q.close);
+                    if let Ok(quote) = response.last_quote() {
+                        let change_percent = if quote.open > 0.0 {
+                            ((quote.close - quote.open) / quote.open) * 100.0
+                        } else {
+                            0.0
+                        };
+
+                        results.insert(
+                            symbol.clone(),
+                            TickerInfo {
+                                price: quote.close,
+                                change_percent,
+                            },
+                        );
+
+                        println!(
+                            "✅ Yahoo Found: {} -> {}$ ({:.2}%)",
+                            symbol, quote.close, change_percent
+                        );
                     }
                 }
                 Err(e) => {
