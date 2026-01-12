@@ -85,7 +85,7 @@ pub async fn sync_kraken_to_firestore(
             unrealized_pnl: "0.0".to_string(),
             source: "KRAKEN".to_string(),
             category_id: category_id,
-            updated_at: timestamp,
+            updated_at: Some(serde_json::json!(timestamp)),
         };
 
         let result = db

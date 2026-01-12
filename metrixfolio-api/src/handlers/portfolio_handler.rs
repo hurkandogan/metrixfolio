@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use crate::models::currency::CurrencyRate;
-use crate::models::settings_model::PortfolioConfig;
-use crate::services::{
-    asset_service, calculation_service, market_data_service, transaction_service,
-};
+use crate::models::portfolio_view::{AssetPerformance, CategoryAnalysis, PortfolioSummary};
+use crate::models::settings_model::{Category, PortfolioConfig};
+use crate::services::{asset_service, market_data_service, transaction_service};
 use crate::state::AppState;
 use axum::debug_handler;
 use axum::{
@@ -19,9 +18,6 @@ pub async fn get_portfolio_summary(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    //TODO: Better handling for fiat currencies and ETFs
-    let fiat_currencies = vec!["USD", "EUR", "TRY", "GBP", "CHF", "CAD", "AUD", "JPY"];
-
     let auth_header = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -50,12 +46,20 @@ pub async fn get_portfolio_summary(
         .unwrap_or(None)
         .unwrap_or_default();
 
-    let (assets, transactions) = tokio::join!(
+    let (assets_result, _) = tokio::join!(
         asset_service::get_all_assets(db, &user_id),
         transaction_service::get_transactions(db, &user_id)
     );
-
-    let assets = assets.unwrap_or_default();
+    // Transaction'lari simdilik kullanmiyoruz, snapshot verisi asset icinde var.
+    let assets = assets_result.unwrap_or_default();
+    
+    // DEBUG: Hangi kaynaktan kac asset geldigini gorelim
+    let mut source_counts: HashMap<String, usize> = HashMap::new();
+    for a in &assets {
+        *source_counts.entry(a.source.clone()).or_insert(0) += 1;
+    }
+    println!("📊 Portfolio Assets Loaded: Total {} -> Breakdown: {:?}", assets.len(), source_counts);
+    // ---------------------------------------------------------
 
     let currencies_stream = db
         .fluent()
@@ -65,62 +69,155 @@ pub async fn get_portfolio_summary(
         .query()
         .await;
 
-    let mut rates_map = HashMap::new();
+    // Kur haritasini olustur: ("EUR", "USD") -> 1.08
+    let mut rates_map: HashMap<(String, String), f64> = HashMap::new();
     if let Ok(list) = currencies_stream {
         for r in list {
-            rates_map.insert(r.from, r.rate);
+            rates_map.insert((r.from, r.to), r.rate);
         }
     }
 
-    let mut symbols_to_fetch = Vec::new();
-    for asset in &assets {
-        if asset.source == "MANUAL" || asset.category_id == "Cash" {
-            continue;
-        }
+    // --- HESAPLAMA MOTORU ---
+    let target_currency = config.base_currency.clone();
+    let mut total_value = 0.0;
+    let mut total_cost = 0.0;
 
-        // Option filter
-        if asset.symbol.contains(" ") || asset.symbol.contains("_") {
-            continue;
-        }
+    // Kategori bazli toplamlari tutmak icin
+    let mut category_values: HashMap<String, f64> = HashMap::new();
 
-        // Fiat filter
-        if fiat_currencies.contains(&asset.symbol.as_str()) {
-            continue;
-        }
-
-        let query_symbol = if asset.source == "KRAKEN"
-            || asset.symbol == "BTC"
-            || asset.symbol == "ETH"
-            || asset.symbol == "XRP"
-        {
-            format!("{}/USD", asset.symbol)
-        } else {
-            asset.symbol.clone()
+    // Helper: Kur cevirici
+    let convert_currency =
+        |amount: f64, from: &str, to: &str, rates: &HashMap<(String, String), f64>| -> f64 {
+            if from == to {
+                return amount;
+            }
+            // Direkt kur var mi? (EUR -> USD)
+            if let Some(rate) = rates.get(&(from.to_string(), to.to_string())) {
+                return amount * rate;
+            }
+            // Ters kur var mi? (USD -> EUR)
+            if let Some(rate) = rates.get(&(to.to_string(), from.to_string())) {
+                if *rate != 0.0 {
+                    return amount / rate;
+                }
+            }
+            // Kur bulunamazsa 1.0 kabul et (Hata olmamasi icin, loglanabilir)
+            eprintln!("⚠️ Missing rate: {} -> {}", from, to);
+            amount
         };
 
-        symbols_to_fetch.push(query_symbol);
+    // --- 1. ADIM: Canli Fiyatlari Cek (IBKR Haric) ---
+    let mut symbols_to_fetch = Vec::new();
+    for asset in &assets {
+        // IBKR verisi zaten mini-pc'den geliyor, onu elleme.
+        // Kraken ve Manual olanlari canli cek.
+        if asset.source != "IBKR" {
+            // Kraken icin sembol duzeltmesi (BTC -> BTC/USD)
+            let query_symbol = if asset.source == "KRAKEN"
+                || ["BTC", "ETH", "XRP", "LTC", "DOGE"].contains(&asset.symbol.as_str())
+            {
+                format!("{}/USD", asset.symbol)
+            } else {
+                asset.symbol.clone()
+            };
+            symbols_to_fetch.push(query_symbol);
+        }
     }
 
-    let detailed_prices = market_data_service::get_market_prices(
-        db,
+    // Servisi cagir (Cache yok, direkt API)
+    let fetched_prices = market_data_service::get_market_prices(
         &state.twelve_data_client,
         &state.yahoo_client,
         symbols_to_fetch,
+        false, // Bekleme yapma
     )
     .await;
 
-    let mut simple_prices: HashMap<String, f64> = HashMap::new();
-    for (symbol, data) in &detailed_prices {
-        simple_prices.insert(symbol.clone(), data.price);
+    // --- 2. ADIM: Hesaplama ---
+    for asset in &assets {
+        // String -> f64 donusumleri (Hata durumunda 0.0)
+        let amount = asset.amount.parse::<f64>().unwrap_or(0.0);
+
+        // Fiyat Belirleme: IBKR ise DB'den, degilse Fetch edilen listeden
+        let current_price = if asset.source == "IBKR" {
+            asset.current_price.parse::<f64>().unwrap_or(0.0)
+        } else {
+            // Fetch edilen listede var mi? (Clean symbol ile bakiyoruz: BTC/USD -> BTC)
+            fetched_prices
+                .get(&asset.symbol)
+                .map(|d| d.price)
+                .unwrap_or_else(|| asset.current_price.parse::<f64>().unwrap_or(0.0))
+        };
+
+        let avg_cost = asset.avg_cost.parse::<f64>().unwrap_or(0.0);
+        let multiplier = asset.multiplier.parse::<f64>().unwrap_or(1.0);
+
+        // Varligin kendi para birimindeki degeri
+        let raw_market_value = amount * current_price * multiplier;
+        let raw_cost_basis = amount * avg_cost * multiplier;
+
+        // Hedef para birimine cevir (Orn: EUR -> USD)
+        let val_in_base = convert_currency(
+            raw_market_value,
+            &asset.currency,
+            &target_currency,
+            &rates_map,
+        );
+        let cost_in_base = convert_currency(
+            raw_cost_basis,
+            &asset.currency,
+            &target_currency,
+            &rates_map,
+        );
+
+        total_value += val_in_base;
+        total_cost += cost_in_base;
+
+        // Kategori toplami
+        *category_values
+            .entry(asset.category_id.clone())
+            .or_insert(0.0) += val_in_base;
     }
 
-    let summary = calculation_service::calculate_portfolio(
-        assets,
-        transactions,
-        config,
-        &simple_prices,
-        &rates_map,
-    );
+    let total_pnl = total_value - total_cost;
+    let pnl_percentage = if total_cost != 0.0 {
+        (total_pnl / total_cost) * 100.0
+    } else {
+        0.0
+    };
+
+    // Kategorileri hazirla
+    let mut category_analysis_list: Vec<CategoryAnalysis> = Vec::new();
+
+    // Config'deki kategorileri dolas, degerleri eslestir
+    for cat_conf in config.categories {
+        let val = *category_values.get(&cat_conf.id).unwrap_or(&0.0);
+        let actual_pct = if total_value != 0.0 {
+            (val / total_value) * 100.0
+        } else {
+            0.0
+        };
+
+        category_analysis_list.push(CategoryAnalysis {
+            id: cat_conf.id,
+            name: cat_conf.name,
+            value: val,
+            actual_percentage: actual_pct,
+            target_percentage: cat_conf.target_percentage,
+        });
+    }
+
+    // Eger config disinda (Uncategorized) asset varsa onlari da ekleyebiliriz
+    // Simdilik sadece config'dekileri donuyoruz.
+
+    let summary = PortfolioSummary {
+        total_value,
+        total_cost,
+        total_pnl,
+        pnl_percentage,
+        base_currency: target_currency,
+        categories: category_analysis_list,
+    };
 
     (StatusCode::OK, Json(summary)).into_response()
 }

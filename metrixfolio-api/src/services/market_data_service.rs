@@ -1,98 +1,60 @@
 use crate::clients::{twelve_data_client::TwelveDataClient, yahoo_client::YahooClient};
-use crate::models::market_data::MarketData;
 // DIKKAT: Client'larin dondugu struct'i da import etmemiz lazim
 use crate::models::market_data::TickerInfo;
-use firestore::*;
-use futures::stream::StreamExt;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::env;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{Duration, sleep};
-
-const CACHE_DURATION_SECONDS: u64 = 15 * 60;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct MarketPriceData {
     pub price: f64,
+    pub open_price: f64,
+    pub prev_close: f64,
     #[serde(rename = "changePercent")]
     pub change_percent: f64,
+    pub is_up: bool,
 }
 
 impl From<TickerInfo> for MarketPriceData {
     fn from(info: TickerInfo) -> Self {
+        let prev_close = if info.change_percent != 0.0 {
+            info.price / (1.0 + (info.change_percent / 100.0))
+        } else {
+            info.price
+        };
+
         Self {
             price: info.price,
+            open_price: info.price,
+            prev_close,
             change_percent: info.change_percent,
+            is_up: info.change_percent >= 0.0,
         }
     }
 }
 
 pub async fn get_market_prices(
-    db: &FirestoreDb,
     client: &TwelveDataClient,
     yahoo_client: &YahooClient,
     symbols: Vec<String>,
+    wait_for_open: bool, // Yeni parametre
 ) -> HashMap<String, MarketPriceData> {
-    let project_id = env::var("FIREBASE_PROJECT_ID").unwrap_or("metrixfolio".to_string());
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let collection_path = format!("projects/{}/databases/(default)/documents", project_id);
-
-    println!("🔍 Checking Cache for {} symbols...", symbols.len());
-
-    let cached_data_stream = db
-        .fluent()
-        .select()
-        .from("market_data")
-        .parent(&collection_path)
-        .obj::<MarketData>()
-        .stream_query()
-        .await;
+    // Rust Notu: 'symbols' vektörünü temizlemek için yardımcı bir closure (isimsiz fonksiyon)
+    let clean_symbol = |s: &str| s.replace("/USD", "").replace("S&P500", "SPX");
 
     let mut price_map: HashMap<String, MarketPriceData> = HashMap::new();
-    let mut symbols_to_fetch: Vec<String> = Vec::new();
-
-    let cached_list: Vec<MarketData> = match cached_data_stream {
-        Ok(s) => s.collect().await,
-        Err(_) => Vec::new(),
-    };
-
-    let mut cache_map: HashMap<String, MarketData> = HashMap::new();
-    for md in cached_list {
-        cache_map.insert(md.symbol.clone(), md);
-    }
-
-    for sym in &symbols {
-        let clean_sym_for_cache = sym.replace("/USD", "");
-
-        let needs_update = if let Some(md) = cache_map.get(&clean_sym_for_cache) {
-            if now - md.last_updated > CACHE_DURATION_SECONDS {
-                true
-            } else {
-                price_map.insert(
-                    clean_sym_for_cache,
-                    MarketPriceData {
-                        price: md.price,
-                        change_percent: md.change_percent,
-                    },
-                );
-                false
-            }
-        } else {
-            true
-        };
-
-        if needs_update {
-            symbols_to_fetch.push(sym.clone());
-        }
-    }
+    // Cache kontrolü yok, hepsini fetch listesine ekle
+    let symbols_to_fetch = symbols.clone();
 
     if !symbols_to_fetch.is_empty() {
         let mut fetched_data: HashMap<String, MarketPriceData> = HashMap::new();
+
+        // Sadece Broadcaster (Node.js) istediğinde bekleme yap
+        // Bu sayede normal kullanıcılar portföylerine bakarken 10sn beklemez.
+        if wait_for_open {
+            println!("⏳ Waiting 10s for market opening noise to settle...");
+            sleep(Duration::from_secs(10)).await;
+        }
 
         for chunk in symbols_to_fetch.chunks(8) {
             let query_string = chunk.join(",");
@@ -104,7 +66,7 @@ pub async fn get_market_prices(
             match client.fetch_prices(&query_string).await {
                 Ok(new_prices) => {
                     for (sym, info) in new_prices {
-                        let clean_sym = sym.replace("/USD", "");
+                        let clean_sym = clean_symbol(&sym);
 
                         fetched_data.insert(clean_sym, MarketPriceData::from(info));
                     }
@@ -118,7 +80,7 @@ pub async fn get_market_prices(
         let missing_symbols: Vec<String> = symbols_to_fetch
             .iter()
             .filter(|s| {
-                let clean_s = s.replace("/USD", "");
+                let clean_s = clean_symbol(s);
                 !fetched_data.contains_key(&clean_s)
             })
             .cloned()
@@ -139,26 +101,6 @@ pub async fn get_market_prices(
 
         for (sym, data) in fetched_data {
             price_map.insert(sym.clone(), data.clone());
-
-            let md = MarketData {
-                symbol: sym.clone(),
-                price: data.price,
-                change_percent: data.change_percent,
-                currency: "USD".to_string(),
-                last_updated: now,
-                source: "HYBRID".to_string(),
-            };
-
-            let _ = db
-                .fluent()
-                .update()
-                .in_col("market_data")
-                .document_id(&sym)
-                .parent(&collection_path)
-                .object(&md)
-                .execute::<()>()
-                .await
-                .map_err(|e| eprintln!("❌ Cache Write Error {}: {}", sym, e));
         }
     } else {
         println!("✨ All prices served from Cache!");

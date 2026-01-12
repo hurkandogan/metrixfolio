@@ -52,7 +52,7 @@ scheduler.post('/trigger', async (c) => {
 
       const symbols = config.indices.map((i) => i.symbol);
 
-      const prices = await marketService.getPrices(symbols);
+      const prices = await marketService.getPrices(symbols, true);
 
       const msg = generateMessage(
         region,

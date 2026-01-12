@@ -14,7 +14,10 @@ export class MarketDataService {
     this.apiSecret = process.env.NOTIFIER_API_SECRET || '';
   }
 
-  async getPrices(symbols: string[]): Promise<Record<string, MarketPriceData>> {
+  async getPrices(
+    symbols: string[],
+    waitForOpen: boolean = false
+  ): Promise<Record<string, MarketPriceData>> {
     console.log(`🌍 Asking Rust Backend for: ${symbols.join(', ')}`);
 
     try {
@@ -26,7 +29,7 @@ export class MarketDataService {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${this.apiSecret}`,
           },
-          body: JSON.stringify({ symbols }),
+          body: JSON.stringify({ symbols, wait_for_open: waitForOpen }),
         }
       );
 

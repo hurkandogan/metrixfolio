@@ -1,5 +1,5 @@
 use crate::models::settings_model::PortfolioConfig;
-use crate::services::{ibkr_service, kraken_service};
+use crate::services::kraken_service;
 use crate::state::AppState;
 use axum::{
     debug_handler,
@@ -69,18 +69,6 @@ pub async fn trigger_sync_handler(
         println!("⚡ SYNCING: {}...", source_name);
 
         match source_name.as_str() {
-            "IBKR" => match state.ibkr_client.fetch_portfolio_xml().await {
-                Ok(xml_data) => {
-                    if let Err(e) =
-                        ibkr_service::sync_ibkr_to_firestore(db, &user_id, &xml_data).await
-                    {
-                        eprintln!("IBKR Service Error: {}", e);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("IBKR Fetch Error: {}", e);
-                }
-            },
             "KRAKEN" => {
                 if let Err(e) =
                     kraken_service::sync_kraken_to_firestore(db, &state.kraken_client, &user_id)
@@ -89,11 +77,8 @@ pub async fn trigger_sync_handler(
                     eprintln!("Kraken Service Error: {}", e);
                 }
             }
-            "ETORO" => {
-                println!("🚧 eToro is not yet implemented (CSV Upload expected).");
-            }
             _ => {
-                println!("❓ Unknown Source: {}", source_name);
+                println!("ℹ️ Skipping source (Not supported): {}", source_name);
             }
         }
     }
