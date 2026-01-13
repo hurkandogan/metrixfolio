@@ -22,24 +22,44 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
       .collection('assets') // CollectionType.ASSETS
       .get();
 
-    // 2. Market Data'yı Çek (Canlı Fiyatlar)
-    // Not: Hepsini çekmek maliyetli olabilir ama şimdilik basit tutalım.
-    // İleride 'whereIn' ile sadece portföydeki sembolleri çekebiliriz.
-    const marketSnapshot = await adminDb.collection('market_data').get();
-
-    // Market Data'yı Map'e çevir (Hızlı erişim için)
-    // Key: Symbol (AAPL), Value: Price (175.50)
-    const priceMap = new Map<string, number>();
-    marketSnapshot.docs.forEach((doc) => {
-      const data = doc.data();
-      if (data.symbol && data.price) {
-        priceMap.set(data.symbol, Number(data.price));
-      }
+    // 2. Market Data'yı Çek (Sadece Kullanıcının Varlıkları İçin)
+    const userSymbols = new Set<string>();
+    assetsSnapshot.docs.forEach((doc) => {
+      const s = doc.data().symbol;
+      if (s) userSymbols.add(s);
     });
+    const uniqueSymbols = Array.from(userSymbols);
+
+    const priceMap = new Map<string, number>();
+
+    if (uniqueSymbols.length > 0) {
+      const chunkSize = 30; // Firestore 'in' query limiti
+      const chunks = [];
+      for (let i = 0; i < uniqueSymbols.length; i += chunkSize) {
+        chunks.push(uniqueSymbols.slice(i, i + chunkSize));
+      }
+
+      const promises = chunks.map((chunk) =>
+        adminDb.collection('market_data').where('symbol', 'in', chunk).get(),
+      );
+      const snapshots = await Promise.all(promises);
+
+      snapshots.forEach((snap) => {
+        snap.docs.forEach((doc) => {
+          const data = doc.data();
+          if (data.symbol && data.price) {
+            priceMap.set(data.symbol, Number(data.price));
+          }
+        });
+      });
+    }
 
     const assets: Asset[] = assetsSnapshot.docs.map((doc) => {
       const data = doc.data();
       const symbol = data.symbol || '';
+      const amount = parseFloat(data.amount) || 0;
+      const avgCost = parseFloat(data.avg_cost) || 0;
+      const multiplier = parseFloat(data.multiplier) || 1;
 
       // --- FİYAT GÜNCELLEME SİHRİ ---
       // Eğer Market Data'da güncel fiyat varsa onu kullan, yoksa eskisi kalsın.
@@ -51,25 +71,28 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
       }
       // ------------------------------
 
+      // PnL Recalculation (Refactoring)
+      // Veritabanındaki eski PnL yerine, güncel fiyatla anlık hesaplıyoruz.
+      const calculatedUnrealizedPnl =
+        (currentPrice - avgCost) * amount * multiplier;
+
       return {
         id: doc.id,
         symbol: symbol,
         name: data.name || '',
-        amount: parseFloat(data.amount) || 0,
-        avg_cost: parseFloat(data.avg_cost) || 0,
+        amount: amount,
+        avg_cost: avgCost,
 
         // Güncel fiyatı buraya koyuyoruz
         current_price: currentPrice,
 
-        // PnL hesabı burada tekrar yapılmalı çünkü fiyat değişti!
-        // PnL = (Current Price - Avg Cost) * Amount * Multiplier
-        // Ama basitlik olsun diye şimdilik eski PnL kalsın veya frontend hesaplasın.
-        unrealized_pnl: parseFloat(data.unrealized_pnl) || 0,
+        // Artık canlı hesaplanmış PnL dönüyoruz
+        unrealized_pnl: calculatedUnrealizedPnl,
 
         currency: data.currency || 'USD',
         source: data.source || 'MANUAL',
         category_id: data.category_id || 'uncategorized',
-        multiplier: parseFloat(data.multiplier) || 1,
+        multiplier: multiplier,
       };
     });
 

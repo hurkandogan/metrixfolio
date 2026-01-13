@@ -20,6 +20,12 @@ import {
 import { getExchangeRatesAction } from '@/actions/currency';
 import { CurrencyConverter } from '@/utils/currency-math';
 
+// Formatter'ı component dışına alarak her render'da yeniden oluşmasını engelliyoruz.
+const usdFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
+
 export default function TransactionManager() {
   const { user } = useAuth();
   const modalRef = useRef<HTMLDialogElement>(null);
@@ -98,13 +104,6 @@ export default function TransactionManager() {
     mutate();
   };
 
-  // Format Helper
-  const fmt = (num: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(num);
-
   if (isLoading) return <div className="skeleton h-96 w-full"></div>;
 
   return (
@@ -134,7 +133,7 @@ export default function TransactionManager() {
             </div>
             <div className="stat-title">Total Deposited</div>
             <div className="stat-value text-success text-2xl">
-              {fmt(stats.deposits)}
+              {usdFormatter.format(stats.deposits)}
             </div>
             <div className="stat-desc">Lifetime funding</div>
           </div>
@@ -147,7 +146,7 @@ export default function TransactionManager() {
             </div>
             <div className="stat-title">Total Withdrawn</div>
             <div className="stat-value text-error text-2xl">
-              {fmt(stats.withdrawals)}
+              {usdFormatter.format(stats.withdrawals)}
             </div>
             <div className="stat-desc">Lifetime cash out</div>
           </div>
@@ -160,7 +159,7 @@ export default function TransactionManager() {
             </div>
             <div className="stat-title">Net Invested</div>
             <div className="stat-value text-primary text-2xl">
-              {fmt(stats.net)}
+              {usdFormatter.format(stats.net)}
             </div>
             <div className="stat-desc">Real money in the game</div>
           </div>

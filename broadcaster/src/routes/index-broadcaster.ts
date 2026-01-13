@@ -54,6 +54,10 @@ scheduler.post('/trigger', async (c) => {
 
       const prices = await marketService.getPrices(symbols, true);
 
+      // --- DEBUG LOG ---
+      // console.log(`🐛 DEBUG PRICES [${region}]:`, JSON.stringify(prices, null, 2));
+      // -----------------
+
       const msg = generateMessage(
         region,
         config.name,

@@ -6,6 +6,8 @@ pub struct PortfolioSummary {
     pub total_cost: f64,
     pub total_pnl: f64,
     pub pnl_percentage: f64,
+    pub unrealized_pnl: f64,
+    pub realized_pnl: f64,
     pub base_currency: String,
     pub categories: Vec<CategoryAnalysis>,
 }

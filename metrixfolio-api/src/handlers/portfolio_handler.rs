@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::models::currency::CurrencyRate;
-use crate::models::portfolio_view::{AssetPerformance, CategoryAnalysis, PortfolioSummary};
-use crate::models::settings_model::{Category, PortfolioConfig};
+use crate::models::portfolio_view::{CategoryAnalysis, PortfolioSummary};
+use crate::models::settings_model::{PortfolioConfig};
 use crate::services::{asset_service, market_data_service, transaction_service};
 use crate::state::AppState;
 use axum::debug_handler;
@@ -46,20 +46,12 @@ pub async fn get_portfolio_summary(
         .unwrap_or(None)
         .unwrap_or_default();
 
-    let (assets_result, _) = tokio::join!(
+    let (assets_result, transactions_result) = tokio::join!(
         asset_service::get_all_assets(db, &user_id),
         transaction_service::get_transactions(db, &user_id)
     );
-    // Transaction'lari simdilik kullanmiyoruz, snapshot verisi asset icinde var.
     let assets = assets_result.unwrap_or_default();
-    
-    // DEBUG: Hangi kaynaktan kac asset geldigini gorelim
-    let mut source_counts: HashMap<String, usize> = HashMap::new();
-    for a in &assets {
-        *source_counts.entry(a.source.clone()).or_insert(0) += 1;
-    }
-    println!("📊 Portfolio Assets Loaded: Total {} -> Breakdown: {:?}", assets.len(), source_counts);
-    // ---------------------------------------------------------
+    let transactions = transactions_result;
 
     let currencies_stream = db
         .fluent()
@@ -80,7 +72,7 @@ pub async fn get_portfolio_summary(
     // --- HESAPLAMA MOTORU ---
     let target_currency = config.base_currency.clone();
     let mut total_value = 0.0;
-    let mut total_cost = 0.0;
+    let mut total_unrealized_pnl = 0.0;
 
     // Kategori bazli toplamlari tutmak icin
     let mut category_values: HashMap<String, f64> = HashMap::new();
@@ -151,10 +143,10 @@ pub async fn get_portfolio_summary(
 
         let avg_cost = asset.avg_cost.parse::<f64>().unwrap_or(0.0);
         let multiplier = asset.multiplier.parse::<f64>().unwrap_or(1.0);
+        let raw_unrealized_pnl = asset.unrealized_pnl.parse::<f64>().unwrap_or(0.0);
 
         // Varligin kendi para birimindeki degeri
         let raw_market_value = amount * current_price * multiplier;
-        let raw_cost_basis = amount * avg_cost * multiplier;
 
         // Hedef para birimine cevir (Orn: EUR -> USD)
         let val_in_base = convert_currency(
@@ -163,15 +155,16 @@ pub async fn get_portfolio_summary(
             &target_currency,
             &rates_map,
         );
-        let cost_in_base = convert_currency(
-            raw_cost_basis,
+        
+        let pnl_in_base = convert_currency(
+            raw_unrealized_pnl,
             &asset.currency,
             &target_currency,
             &rates_map,
         );
 
         total_value += val_in_base;
-        total_cost += cost_in_base;
+        total_unrealized_pnl += pnl_in_base;
 
         // Kategori toplami
         *category_values
@@ -179,9 +172,16 @@ pub async fn get_portfolio_summary(
             .or_insert(0.0) += val_in_base;
     }
 
-    let total_pnl = total_value - total_cost;
-    let pnl_percentage = if total_cost != 0.0 {
-        (total_pnl / total_cost) * 100.0
+    // --- 3. ADIM: Gerçek Yatırılan Parayı Hesapla (Transaction-based) ---
+    let net_invested_map = transaction_service::calculate_net_investment(&transactions);
+    let mut total_invested_base = 0.0;
+    for (curr, amt) in net_invested_map {
+        total_invested_base += convert_currency(amt, &curr, &target_currency, &rates_map);
+    }
+
+    let total_pnl = total_value - total_invested_base;
+    let pnl_percentage = if total_invested_base != 0.0 {
+        (total_pnl / total_invested_base) * 100.0
     } else {
         0.0
     };
@@ -212,9 +212,11 @@ pub async fn get_portfolio_summary(
 
     let summary = PortfolioSummary {
         total_value,
-        total_cost,
+        total_cost: total_invested_base,
         total_pnl,
         pnl_percentage,
+        unrealized_pnl: total_unrealized_pnl,
+        realized_pnl: total_pnl - total_unrealized_pnl,
         base_currency: target_currency,
         categories: category_analysis_list,
     };

@@ -2,9 +2,8 @@
 
 import { formatCurrency } from '@/utils/functions';
 import { FC, useEffect, useState, useRef } from 'react';
-import { FiSettings, FiCheckCircle, FiTarget } from 'react-icons/fi';
+import { FiCheckCircle, FiTarget } from 'react-icons/fi';
 import {
-  saveGrowthSettingsAction,
   checkMilestonesAction,
   getGrowthWidgetAction,
   GrowthWidgetData,
@@ -17,7 +16,6 @@ interface GoalTableProps {
 
 export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
   const { user } = useAuth();
-  const modalRef = useRef<HTMLDialogElement>(null);
   const activeRowRef = useRef<HTMLTableRowElement>(null); // Aktif satır referansı
 
   const [config, setConfig] = useState<GrowthWidgetData>({
@@ -29,17 +27,30 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
 
   const [tableData, setTableData] = useState<any[]>([]);
 
-  // 1. Veri Yükleme
+  // 1. Config Yükleme (Sadece user değişince çalışır)
   useEffect(() => {
     if (!user) return;
-    const init = async () => {
-      const data = await getGrowthWidgetAction(user.uid);
-      if (data) {
-        setConfig(data);
-        await checkMilestonesAction(user.uid, currentValue);
-      }
-    };
-    init();
+    getGrowthWidgetAction(user.uid).then((data) => {
+      if (data) setConfig(data);
+    });
+  }, [user]);
+
+  // 2. Milestone Kontrolü (Value değişince çalışır)
+  useEffect(() => {
+    if (!user || currentValue <= 0) return;
+
+    // Debounce: Değer her değiştiğinde değil, değişim durduktan 1sn sonra kontrol et
+    const timer = setTimeout(() => {
+      const runCheck = async () => {
+        const res = await checkMilestonesAction(user.uid, currentValue);
+        if (res?.success && res.newMilestones) {
+          setConfig((prev) => ({ ...prev, milestones: res.newMilestones }));
+        }
+      };
+      runCheck();
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [user, currentValue]);
 
   // 2. Tablo Hesaplama (FIXED)
@@ -47,10 +58,12 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     const rows = [];
     let currentStepStart = config.startAmount; // <--- DÜZELTME: Direkt startAmount ile başlıyoruz
     let step = 1;
-    const rate = config.growthRate / 100;
+    const rate = 0.1; // 10% fixed growth rate
 
-    // Hedefe kadar döngü
-    while (currentStepStart < config.targetAmount) {
+    // Tabloyu sonsuza kadar uzatmak yerine, mevcut değerin 2 katına kadar veya en az 20 adım gösterelim.
+    const stopValue = Math.max(currentValue * 2, config.startAmount * 10);
+
+    while (true) {
       const growthAmount = currentStepStart * rate;
       const endValue = currentStepStart + growthAmount;
 
@@ -69,40 +82,42 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
       currentStepStart = endValue;
       step++;
 
-      if (step > 200) break;
+      if (currentStepStart > stopValue && step > 20) break;
+      if (step > 1000) break; // Safety break
     }
     setTableData(rows);
-  }, [config]);
+  }, [config, currentValue]);
 
   // 3. Otomatik Scroll
   useEffect(() => {
     if (activeRowRef.current) {
+      // 'block: center' tüm sayfayı kaydırabilir, 'nearest' sadece container içinde görünür yapar.
       activeRowRef.current.scrollIntoView({
         behavior: 'smooth',
-        block: 'center',
+        block: 'nearest',
       });
     }
   }, [tableData]);
 
-  // Ayar Kaydetme
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    await saveGrowthSettingsAction(user.uid, config);
-    modalRef.current?.close();
-  };
+  // --- FİLTRELEME MANTIĞI ---
+  // Aktif satırın indeksini bul
+  const activeIndex = tableData.findIndex(
+    (row) => currentValue >= row.start && currentValue < row.end,
+  );
+
+  // Eğer aktif satır yoksa (hedef bittiyse), listenin sonunu baz al
+  const safeActiveIndex =
+    activeIndex === -1 ? tableData.length - 1 : activeIndex;
+
+  // Sadece son 5 tamamlanan adımı + aktif adımı + gelecek adımları göster
+  const startIndex = Math.max(0, safeActiveIndex - 5);
+  const visibleRows = tableData.slice(startIndex);
 
   return (
     <div className="card bg-base-100 border-base-200 flex h-full flex-col border shadow-xl">
       <div className="card-body flex-none p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="card-title text-lg">🚀 Growth Targets</h2>
-          <button
-            onClick={() => modalRef.current?.showModal()}
-            className="btn btn-ghost btn-sm"
-          >
-            <FiSettings />
-          </button>
         </div>
       </div>
 
@@ -114,12 +129,13 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
               <th>#</th>
               <th>Start</th>
               <th>Target (End)</th>
+              <th>Progress</th> {/* YENİ KOLON */}
               <th>Gap (To Go)</th> {/* YENİ KOLON */}
               <th>Date</th>
             </tr>
           </thead>
           <tbody>
-            {tableData.map((row) => {
+            {visibleRows.map((row) => {
               // Mantık: Şu anki param, bu adımın başlangıcından büyük ama bitişinden küçükse -> BURADAYIM
               const isCompleted = currentValue >= row.end;
               const isActive =
@@ -128,14 +144,31 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
               // Hedefe ne kadar kaldı?
               const gap = row.end - currentValue;
 
+              // İlerleme Yüzdesi (Sadece bu adım için)
+              // Formül: (Mevcut - Başlangıç) / (Bitiş - Başlangıç)
+              const stepProgress = isActive
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      ((currentValue - row.start) / (row.end - row.start)) *
+                        100,
+                    ),
+                  )
+                : isCompleted
+                  ? 100
+                  : 0;
+
               return (
                 <tr
                   key={row.step}
                   ref={isActive ? activeRowRef : null} // Referansı aktif satıra veriyoruz
                   className={
                     isActive
-                      ? 'bg-primary/10 border-primary scroll-mt-20 border-l-4'
-                      : ''
+                      ? 'bg-primary/5 border-primary border-l-4 shadow-sm'
+                      : isCompleted
+                        ? 'opacity-60 transition-opacity hover:opacity-100'
+                        : ''
                   }
                 >
                   <td className="font-bold opacity-50">{row.step}</td>
@@ -146,6 +179,36 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                     className={`font-mono font-bold ${isCompleted ? 'text-success' : ''}`}
                   >
                     {formatCurrency(row.end)}
+                  </td>
+
+                  {/* PROGRESS BAR */}
+                  <td className="w-32 align-middle">
+                    {isActive ? (
+                      <div className="flex flex-col gap-1">
+                        <progress
+                          className="progress progress-primary w-full"
+                          value={stepProgress}
+                          max="100"
+                        ></progress>
+                        <span className="text-primary text-right text-[10px] font-bold">
+                          {stepProgress.toFixed(1)}%
+                        </span>
+                      </div>
+                    ) : isCompleted ? (
+                      <div className="flex items-center gap-2">
+                        <progress
+                          className="progress progress-success w-full"
+                          value="100"
+                          max="100"
+                        ></progress>
+                      </div>
+                    ) : (
+                      <progress
+                        className="progress w-full opacity-30"
+                        value="0"
+                        max="100"
+                      ></progress>
+                    )}
                   </td>
 
                   {/* FARK (GAP) */}
@@ -181,60 +244,6 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
           </tbody>
         </table>
       </div>
-
-      {/* SETTINGS MODAL (AYNI KALSIN) */}
-      <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
-        <div className="modal-box">
-          <h3 className="mb-4 text-lg font-bold">Widget Settings</h3>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="form-control">
-              <label className="label">Starting Amount ($)</label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={config.startAmount}
-                onChange={(e) =>
-                  setConfig({ ...config, startAmount: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div className="form-control">
-              <label className="label">Target Amount ($)</label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={config.targetAmount}
-                onChange={(e) =>
-                  setConfig({ ...config, targetAmount: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div className="form-control">
-              <label className="label">Growth Rate (%)</label>
-              <input
-                type="number"
-                className="input input-bordered"
-                step="0.1"
-                value={config.growthRate}
-                onChange={(e) =>
-                  setConfig({ ...config, growthRate: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div className="modal-action">
-              <form method="dialog">
-                <button className="btn">Close</button>
-              </form>
-              <button className="btn btn-primary" type="submit">
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
     </div>
   );
 };

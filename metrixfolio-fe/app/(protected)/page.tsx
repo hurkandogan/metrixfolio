@@ -29,6 +29,12 @@ export default function Dashboard() {
     }));
   }, [portfolio]);
 
+  const goalPercentage = useMemo(() => {
+    const GOAL_AMOUNT = 10000;
+    const current = portfolio?.total_value || 0;
+    return Math.min((current / GOAL_AMOUNT) * 100, 100); // Max %100 olsun
+  }, [portfolio]);
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -53,9 +59,10 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold">Dashboard</h1>
         <StatCards
           totalValue={portfolio?.total_value || 0}
-          currentTarget={portfolio?.total_cost || 0}
+          totalInvested={portfolio?.total_cost || 0}
           totalProfit={portfolio?.total_pnl || 0}
           profitPercentage={portfolio?.pnl_percentage || 0}
+          goalPercentage={goalPercentage}
         />
 
         {portfolio?.categories && (

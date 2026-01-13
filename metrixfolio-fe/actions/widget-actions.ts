@@ -63,12 +63,12 @@ export async function checkMilestonesAction(
 
   let loopVal = growth.startAmount;
   let step = 1;
-  const rate = growth.growthRate / 100;
+  const rate = 0.1; // Frontend ile uyumlu sabit %10 büyüme oranı
   const newMilestones = [...(growth.milestones || [])];
   let updated = false;
 
-  // Hedefe kadar döngü
-  while (loopVal < growth.targetAmount) {
+  // Sonsuz döngü: Mevcut portföy değerine ulaşana kadar milestone kontrolü yap
+  while (true) {
     const nextVal = loopVal + loopVal * rate;
 
     // Eğer şu anki portföy değeri bu basamağı geçtiyse VE daha önce kaydedilmediyse
@@ -82,6 +82,9 @@ export async function checkMilestonesAction(
         });
         updated = true;
       }
+    } else {
+      // Henüz bu basamağa ulaşılmadıysa, sonraki basamakları kontrol etmeye gerek yok.
+      break;
     }
 
     loopVal = nextVal;

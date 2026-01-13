@@ -43,8 +43,10 @@ pub async fn get_market_prices(
     let clean_symbol = |s: &str| s.replace("/USD", "").replace("S&P500", "SPX");
 
     let mut price_map: HashMap<String, MarketPriceData> = HashMap::new();
+    let mut symbols_to_fetch: Vec<String> = Vec::new();
+
     // Cache kontrolü yok, hepsini fetch listesine ekle
-    let symbols_to_fetch = symbols.clone();
+    symbols_to_fetch = symbols.clone();
 
     if !symbols_to_fetch.is_empty() {
         let mut fetched_data: HashMap<String, MarketPriceData> = HashMap::new();
@@ -52,8 +54,8 @@ pub async fn get_market_prices(
         // Sadece Broadcaster (Node.js) istediğinde bekleme yap
         // Bu sayede normal kullanıcılar portföylerine bakarken 10sn beklemez.
         if wait_for_open {
-            println!("⏳ Waiting 10s for market opening noise to settle...");
-            sleep(Duration::from_secs(10)).await;
+            println!("⏳ Waiting 30s for market opening noise to settle...");
+            sleep(Duration::from_secs(30)).await;
         }
 
         for chunk in symbols_to_fetch.chunks(8) {
