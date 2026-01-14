@@ -69,9 +69,9 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
                   />
                 ))}
               </Pie>
-              {/* Fareyi üzerine getirince detayı göster */}
-              <Tooltip formatter={(value: number) => `${value.toFixed(2)}%`} />
-              {/* <Legend /> -> Etiketler (label) zaten gösterildiği için buna gerek yok */}
+              {/* <Tooltip
+                formatter={(value: number) => parseFloat(value.toFixed(2))}
+               /> */}
             </PieChart>
           </ResponsiveContainer>
         </div>
