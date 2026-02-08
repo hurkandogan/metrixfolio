@@ -110,3 +110,82 @@ pub async fn get_market_prices(
 
     price_map
 }
+
+/// Broadcaster için özel fonksiyon: Dünün kapanışı ve bugünün açılışı arasındaki farkı hesaplar
+/// Bu fonksiyon sadece Telegram/Twitter gibi bildirim sistemleri için kullanılacak
+#[derive(Serialize, Clone, Debug)]
+pub struct BroadcasterPriceData {
+    pub symbol: String,
+    pub prev_close: f64,
+    pub current_open: f64,
+    #[serde(rename = "changePercent")]
+    pub change_percent: f64,
+    pub is_up: bool,
+}
+
+pub async fn get_market_prices_for_broadcaster(
+    client: &TwelveDataClient,
+    yahoo_client: &YahooClient,
+    symbols: Vec<String>,
+) -> HashMap<String, BroadcasterPriceData> {
+    let clean_symbol = |s: &str| s.replace("/USD", "").replace("S&P500", "SPX");
+    
+    let mut results: HashMap<String, BroadcasterPriceData> = HashMap::new();
+    
+    // Market açılış gürültüsünün yatışmasını bekle
+    println!("⏳ Waiting 30s for market opening noise to settle...");
+    sleep(Duration::from_secs(30)).await;
+
+    for symbol in &symbols {
+        let clean_sym = clean_symbol(symbol);
+        
+        // Önce Twelve Data'dan dene
+        match client.fetch_time_series(symbol).await {
+            Ok(candle) => {
+                let change_percent = if candle.prev_close != 0.0 {
+                    ((candle.current_open - candle.prev_close) / candle.prev_close) * 100.0
+                } else {
+                    0.0
+                };
+
+                results.insert(clean_sym.clone(), BroadcasterPriceData {
+                    symbol: clean_sym,
+                    prev_close: candle.prev_close,
+                    current_open: candle.current_open,
+                    change_percent,
+                    is_up: change_percent >= 0.0,
+                });
+            }
+            Err(e) => {
+                println!("⚠️ Twelve Data time series failed for {}: {}. Trying Yahoo...", symbol, e);
+                
+                // Yahoo'dan dene
+                match yahoo_client.fetch_historical(symbol).await {
+                    Ok(candle) => {
+                        let change_percent = if candle.prev_close != 0.0 {
+                            ((candle.current_open - candle.prev_close) / candle.prev_close) * 100.0
+                        } else {
+                            0.0
+                        };
+
+                        results.insert(clean_sym.clone(), BroadcasterPriceData {
+                            symbol: clean_sym,
+                            prev_close: candle.prev_close,
+                            current_open: candle.current_open,
+                            change_percent,
+                            is_up: change_percent >= 0.0,
+                        });
+                    }
+                    Err(yahoo_err) => {
+                        println!("❌ Both APIs failed for {}: {}", symbol, yahoo_err);
+                    }
+                }
+            }
+        }
+        
+        // Rate limiting: Her sembol arasında bekle
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    results
+}

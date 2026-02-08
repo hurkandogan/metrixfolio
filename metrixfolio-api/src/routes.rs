@@ -1,4 +1,4 @@
-use crate::handlers::public_data_handler::get_market_prices_detailed_handler;
+use crate::handlers::public_data_handler::{get_market_prices_detailed_handler, get_broadcaster_prices_handler};
 use crate::handlers::{
     portfolio_handler::get_portfolio_summary, public_data_handler::get_market_prices_handler,
     sync_handler::trigger_sync_handler,
@@ -35,6 +35,10 @@ pub fn create_router(app_state: AppState) -> Router {
         .route(
             "/api/v1/market/prices/detailed",
             post(get_market_prices_detailed_handler),
+        )
+        .route(
+            "/api/v1/market/prices/broadcaster",
+            post(get_broadcaster_prices_handler),
         )
         .with_state(app_state.clone());
 

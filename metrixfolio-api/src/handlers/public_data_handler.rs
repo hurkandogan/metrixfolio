@@ -66,3 +66,24 @@ pub async fn get_market_prices_detailed_handler(
 
     (StatusCode::OK, Json(full_data)).into_response()
 }
+
+/// Broadcaster için özel endpoint: İki mum verisi çeker ve değişim yüzdesini kendimiz hesaplarız
+/// Bu endpoint sadece Telegram/Twitter gibi bildirim sistemleri için kullanılacak
+pub async fn get_broadcaster_prices_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<PriceRequest>,
+) -> impl IntoResponse {
+    if !check_auth(&headers) {
+        return (StatusCode::UNAUTHORIZED, "Unauthorized access").into_response();
+    }
+
+    let broadcaster_data = market_data_service::get_market_prices_for_broadcaster(
+        &state.twelve_data_client,
+        &state.yahoo_client,
+        payload.symbols,
+    )
+    .await;
+
+    (StatusCode::OK, Json(broadcaster_data)).into_response()
+}
