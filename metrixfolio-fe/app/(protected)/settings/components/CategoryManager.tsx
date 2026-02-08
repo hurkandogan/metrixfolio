@@ -6,24 +6,41 @@ import {
   addCategoryAction,
   getCategoriesAction,
   deleteCategoryAction,
-  updateCategoryAction, // <--- YENİ IMPORT
+  updateCategoryAction,
 } from '@/actions/categories';
 import { Category } from '@/types/settings';
-import { FiTrash2, FiPlus, FiLoader, FiEdit2, FiX } from 'react-icons/fi'; // FiEdit2 ve FiX eklendi
+import { FiTrash2, FiPlus, FiLoader, FiEdit2, FiX, FiCheck } from 'react-icons/fi';
 import useSWR from 'swr';
+
+// DaisyUI/Neon Color Selection
+const PRESET_COLORS = [
+  '#EF4444', // Red
+  '#F97316', // Orange
+  '#F59E0B', // Amber
+  '#84CC16', // Lime
+  '#10B981', // Emerald
+  '#06B6D4', // Cyan
+  '#3B82F6', // Blue
+  '#6366F1', // Indigo
+  '#8B5CF6', // Violet
+  '#D946EF', // Fuchsia
+  '#EC4899', // Pink
+  '#F43F5E', // Rose
+  '#64748B', // Slate
+  '#A1A1AA', // Zinc
+];
 
 export default function CategoryManager() {
   const { user } = useAuth();
 
-  // Form State
   const [name, setName] = useState('');
   const [target, setTarget] = useState(0);
   const [type, setType] = useState('ASSET');
+  const [color, setColor] = useState(PRESET_COLORS[6]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null); // Düzenlenen kategori
+  const [editingCategory, setEditingCategory] = useState<(Category & { color?: string }) | null>(null);
 
-  // Veri Çekme
   const {
     data: categories = [],
     error,
@@ -33,11 +50,12 @@ export default function CategoryManager() {
     getCategoriesAction(uid),
   );
 
-  const handleEditClick = (cat: Category) => {
+  const handleEditClick = (cat: Category & { color?: string }) => {
     setEditingCategory(cat);
     setName(cat.name);
     setTarget(cat.target_percentage);
     setType(cat.type as string);
+    setColor(cat.color || PRESET_COLORS[6]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -46,10 +64,20 @@ export default function CategoryManager() {
     setName('');
     setTarget(0);
     setType('ASSET');
+    setColor(PRESET_COLORS[6]);
   };
 
   const handleSubmit = async () => {
     if (!user || !name) return;
+
+    if (!editingCategory) {
+      const generatedId = name.trim().toLowerCase().replace(/\s+/g, '');
+      if (categories.some((c) => c.id === generatedId)) {
+        alert('A category with this name already exists.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     let res;
@@ -60,9 +88,10 @@ export default function CategoryManager() {
         name,
         target_percentage: target,
         type: type as any,
+        color,
       });
     } else {
-      res = await addCategoryAction(user.uid, name, target, type);
+      res = await addCategoryAction(user.uid, name, target, type, color);
     }
 
     if (res.success) {
@@ -98,7 +127,7 @@ export default function CategoryManager() {
           </div>
         )}
 
-        <div className="form-control min-w-[200px] flex-1">
+        <div className="form-control min-w-50 flex-1">
           <label className="label">
             <span className="label-text">Category Name</span>
           </label>
@@ -138,8 +167,28 @@ export default function CategoryManager() {
           </select>
         </div>
 
+        {/* Color Selection */}
+        <div className="form-control w-full md:w-auto">
+          <label className="label">
+            <span className="label-text">Color</span>
+          </label>
+          <div className="flex flex-wrap gap-2 p-1">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${
+                  color === c ? 'ring-2 ring-offset-2 ring-offset-base-100 scale-110 ring-primary' : ''
+                }`}
+                style={{ backgroundColor: c }}
+                title={c}
+                type="button"
+              />
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-2">
-          {/* İPTAL BUTONU (Sadece Edit Modunda) */}
           {editingCategory && (
             <button
               className="btn btn-ghost text-error"
@@ -149,7 +198,6 @@ export default function CategoryManager() {
             </button>
           )}
 
-          {/* KAYDET BUTONU */}
           <button
             className={`btn ${editingCategory ? 'btn-warning' : 'btn-primary'}`}
             onClick={handleSubmit}
@@ -167,9 +215,8 @@ export default function CategoryManager() {
         </div>
       </div>
 
-      {/* --- LİSTE --- */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {categories.map((cat) => (
+        {categories.map((cat: Category & { color?: string }) => (
           <div
             key={cat.id}
             className={`card bg-base-100 border shadow-sm transition-all hover:shadow-md ${
@@ -177,6 +224,7 @@ export default function CategoryManager() {
                 ? 'ring-warning ring-2'
                 : 'border-base-300'
             }`}
+            style={{ borderLeft: `4px solid ${cat.color || 'transparent'}` }}
           >
             <div className="card-body flex-row items-center justify-between p-4">
               <div>
@@ -190,7 +238,6 @@ export default function CategoryManager() {
               </div>
 
               <div className="flex gap-1">
-                {/* EDIT BUTTON */}
                 <button
                   onClick={() => handleEditClick(cat)}
                   className="btn btn-ghost btn-sm text-warning"
@@ -199,7 +246,6 @@ export default function CategoryManager() {
                   <FiEdit2 />
                 </button>
 
-                {/* DELETE BUTTON */}
                 <button
                   onClick={() => handleDelete(cat)}
                   className="btn btn-ghost btn-sm text-error"

@@ -11,8 +11,6 @@ const CONFIG_PATH = (userId: string) =>
     .doc('main');
 
 export interface GrowthWidgetData {
-  startAmount: number;
-  targetAmount: number;
   growthRate: number;
   milestones: { step: number; date: string; value: number }[];
 }
@@ -61,36 +59,32 @@ export async function checkMilestonesAction(
 
   if (!growth) return;
 
-  let loopVal = growth.startAmount;
+  let loopVal = 1000;
   let step = 1;
-  const rate = 0.1; // Frontend ile uyumlu sabit %10 büyüme oranı
+  const rate = (growth.growthRate || 10) / 100;
   const newMilestones = [...(growth.milestones || [])];
   let updated = false;
 
-  // Sonsuz döngü: Mevcut portföy değerine ulaşana kadar milestone kontrolü yap
   while (true) {
     const nextVal = loopVal + loopVal * rate;
 
-    // Eğer şu anki portföy değeri bu basamağı geçtiyse VE daha önce kaydedilmediyse
     if (currentPortfolioValue >= nextVal) {
       const exists = newMilestones.find((m) => m.step === step);
       if (!exists) {
         newMilestones.push({
           step,
           value: nextVal,
-          date: new Date().toISOString().split('T')[0], // Bugünün tarihi
+          date: new Date().toISOString().split('T')[0],
         });
         updated = true;
       }
     } else {
-      // Henüz bu basamağa ulaşılmadıysa, sonraki basamakları kontrol etmeye gerek yok.
       break;
     }
 
     loopVal = nextVal;
     step++;
-
-    // Sonsuz döngü koruması (Max 1000 adım)
+    
     if (step > 1000) break;
   }
 

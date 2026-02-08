@@ -28,40 +28,6 @@ export const NavBar = () => {
     }
   };
 
-  const handleSync = async () => {
-    const user = authInfo.user;
-
-    if (!user) {
-      console.error('No user found for sync.');
-      return;
-    }
-    const token = await user.getIdToken();
-
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/sync/all`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'text/plain',
-          },
-        },
-      );
-
-      if (res.ok) {
-        const data = await res.json();
-        alert('Success: ' + JSON.stringify(data));
-      } else {
-        const errorText = await res.text();
-        alert('Error: ' + errorText);
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Connection error!');
-    }
-  };
-
   return (
     <>
       <dialog

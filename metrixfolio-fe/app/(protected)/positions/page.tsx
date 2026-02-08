@@ -7,11 +7,14 @@ import {
   FiAlertCircle,
   FiCheckCircle,
   FiTag,
+  FiEdit2,
+  FiTrash2,
 } from 'react-icons/fi';
 import { getAuth } from 'firebase/auth';
 import {
   getAssetsAction,
   updateAssetCategoryAction,
+  deleteAssetAction,
 } from '@/actions/positions';
 import { Asset } from '@/types/positions';
 import { Category } from '@/types/settings';
@@ -67,12 +70,27 @@ export default function PositionsPage() {
     }
   };
 
+  const handleDeleteAsset = async (assetId: string) => {
+    if (!user || !confirm('Are you sure you want to delete this asset?')) return;
+
+    const res = await deleteAssetAction(user.uid, assetId);
+    if (res.success) {
+      await loadData();
+    } else {
+      alert('Error: ' + res.message);
+    }
+  };
+
   const calculateMarketValue = (asset: Asset) => {
-    const price = asset.current_price;
-    const amount = asset.amount;
-    const multiplier = asset.multiplier || 1;
-    console.log(asset);
-    return price * amount * multiplier;
+    // Backend zaten market_value hesaplayıp gönderiyor ama
+    // anlık hesaplama gerekirse diye burada da tutabiliriz.
+    // Ancak backend verisi (USD normalize edilmiş) daha güvenilir.
+    return asset.market_value || 0;
+  };
+
+  const getCategoryName = (catId: string) => {
+    const cat = categories.find((c) => c.id === catId);
+    return cat ? cat.name : catId;
   };
 
   const formatMoney = (val: string, currency: string) => {
@@ -85,37 +103,19 @@ export default function PositionsPage() {
     }).format(num);
   };
 
-  const handleSync = async () => {
-    if (!user) return;
-    setSyncing(true);
-    try {
-      const token = await user.getIdToken();
-      // Rust Backend URL
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/sync/all`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (res.ok) {
-        await loadData();
-      } else {
-        const err = await res.text();
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const inboxAssets = assets.filter((a) => a.category_id === 'uncategorized');
   const portfolioAssets = assets.filter(
     (a) => a.category_id !== 'uncategorized',
+  );
+
+  // --- TOPLAMLAR ---
+  const totalMarketValue = portfolioAssets.reduce(
+    (sum, asset) => sum + (asset.market_value || 0),
+    0,
+  );
+  const totalUnrealizedPnl = portfolioAssets.reduce(
+    (sum, asset) => sum + (asset.unrealized_pnl || 0),
+    0,
   );
 
   return (
@@ -184,16 +184,6 @@ export default function PositionsPage() {
         </div>
         <div className="flex gap-2">
           <AddManualAssetModal categories={categories} onSuccess={loadData} />
-          <button
-            className="btn btn-primary"
-            onClick={handleSync}
-            disabled={syncing}
-          >
-            <FiRefreshCw
-              className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`}
-            />
-            {syncing ? 'Syncing...' : 'Sync with Brokers'}
-          </button>
         </div>
       </div>
 
@@ -283,6 +273,7 @@ export default function PositionsPage() {
                   <th className="text-right">Price</th>
                   <th className="text-right">Value (Est.)</th>
                   <th className="text-right">P/L</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -301,7 +292,7 @@ export default function PositionsPage() {
                     </td>
                     <td>
                       <div className="badge badge-outline">
-                        {asset.category_id}
+                        {getCategoryName(asset.category_id)}
                       </div>
                     </td>
                     <td className="text-right font-mono">{asset.amount}</td>
@@ -316,7 +307,7 @@ export default function PositionsPage() {
                     </td>
                     <td className="text-right font-mono">
                       {formatMoney(
-                        calculateMarketValue(asset).toString(),
+                        (asset.market_value || 0).toString(),
                         asset.currency,
                       )}
                     </td>
@@ -331,16 +322,51 @@ export default function PositionsPage() {
                         asset.currency,
                       )}
                     </td>
+                    <td className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          className="btn btn-square btn-ghost btn-xs"
+                          onClick={() => openCategorizeModal(asset)}
+                          title="Edit Category"
+                        >
+                          <FiEdit2 />
+                        </button>
+                        <button
+                          className="btn btn-square btn-ghost btn-xs text-error"
+                          onClick={() => handleDeleteAsset(asset.id)}
+                          title="Delete Asset"
+                        >
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {portfolioAssets.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center opacity-50">
+                    <td colSpan={9} className="py-8 text-center opacity-50">
                       No categorized assets found.
                     </td>
                   </tr>
                 )}
               </tbody>
+              {/* --- FOOTER (TOPLAMLAR) --- */}
+              {portfolioAssets.length > 0 && (
+                <tfoot>
+                  <tr className="bg-base-200/50 font-bold text-base-content">
+                    <td colSpan={6} className="text-right">
+                      TOTALS:
+                    </td>
+                    <td className="text-right font-mono text-lg">
+                      {formatMoney(totalMarketValue.toString(), 'USD')}
+                    </td>
+                    <td className={`text-right font-mono text-lg ${totalUnrealizedPnl >= 0 ? 'text-success' : 'text-error'}`}>
+                      {formatMoney(totalUnrealizedPnl.toString(), 'USD')}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>

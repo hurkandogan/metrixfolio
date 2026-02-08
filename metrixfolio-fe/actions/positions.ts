@@ -3,6 +3,7 @@
 import { adminDb } from '@/utils/firebase-admin';
 import { CollectionType } from '@/types/settings';
 import { Asset } from '@/types/positions';
+import { getExchangeRatesAction } from '@/actions/currency';
 
 interface MarketData {
   symbol: string;
@@ -15,14 +16,31 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
   if (!userId) return [];
 
   try {
-    // 1. Assetleri Çek
-    const assetsSnapshot = await adminDb
-      .collection(CollectionType.USERS)
-      .doc(userId)
-      .collection('assets') // CollectionType.ASSETS
-      .get();
+    
+    const [assetsSnapshot, rates] = await Promise.all([
+      adminDb
+        .collection(CollectionType.USERS)
+        .doc(userId)
+        .collection('assets')
+        .get(),
+      getExchangeRatesAction(),
+    ]);
 
-    // 2. Market Data'yı Çek (Sadece Kullanıcının Varlıkları İçin)
+    const rateMap = new Map<string, number>();
+    rates.forEach((r) => {
+      rateMap.set(`${r.from}_${r.to}`, r.rate);
+    });
+
+    const convertToUsd = (amount: number, fromCurrency: string) => {
+      if (fromCurrency === 'USD') return amount;
+      const directKey = `${fromCurrency}_USD`;
+      if (rateMap.has(directKey)) return amount * rateMap.get(directKey)!;
+      const inverseKey = `USD_${fromCurrency}`;
+      if (rateMap.has(inverseKey) && rateMap.get(inverseKey)! !== 0)
+        return amount / rateMap.get(inverseKey)!;
+      return amount;
+    };
+
     const userSymbols = new Set<string>();
     assetsSnapshot.docs.forEach((doc) => {
       const s = doc.data().symbol;
@@ -33,7 +51,7 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
     const priceMap = new Map<string, number>();
 
     if (uniqueSymbols.length > 0) {
-      const chunkSize = 30; // Firestore 'in' query limiti
+      const chunkSize = 30;
       const chunks = [];
       for (let i = 0; i < uniqueSymbols.length; i += chunkSize) {
         chunks.push(uniqueSymbols.slice(i, i + chunkSize));
@@ -60,19 +78,16 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
       const amount = parseFloat(data.amount) || 0;
       const avgCost = parseFloat(data.avg_cost) || 0;
       const multiplier = parseFloat(data.multiplier) || 1;
+      const currency = data.currency || 'USD';
 
-      // --- FİYAT GÜNCELLEME SİHRİ ---
-      // Eğer Market Data'da güncel fiyat varsa onu kullan, yoksa eskisi kalsın.
-      // Opsiyonları (boşluklu isimler) ve Manuel'leri pas geçebiliriz istersen.
       let currentPrice = parseFloat(data.current_price) || 0;
 
       if (priceMap.has(symbol)) {
         currentPrice = priceMap.get(symbol)!;
       }
-      // ------------------------------
 
-      // PnL Recalculation (Refactoring)
-      // Veritabanındaki eski PnL yerine, güncel fiyatla anlık hesaplıyoruz.
+      const marketValue = amount * currentPrice * multiplier;
+      // TODO this is not working with options
       const calculatedUnrealizedPnl =
         (currentPrice - avgCost) * amount * multiplier;
 
@@ -81,15 +96,11 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
         symbol: symbol,
         name: data.name || '',
         amount: amount,
-        avg_cost: avgCost,
-
-        // Güncel fiyatı buraya koyuyoruz
-        current_price: currentPrice,
-
-        // Artık canlı hesaplanmış PnL dönüyoruz
-        unrealized_pnl: calculatedUnrealizedPnl,
-
-        currency: data.currency || 'USD',
+        avg_cost: convertToUsd(avgCost, currency),
+        current_price: convertToUsd(currentPrice, currency),
+        market_value: convertToUsd(marketValue, currency),
+        unrealized_pnl: convertToUsd(calculatedUnrealizedPnl, currency),
+        currency: 'USD',
         source: data.source || 'MANUAL',
         category_id: data.category_id || 'uncategorized',
         multiplier: multiplier,
@@ -126,6 +137,26 @@ export async function updateAssetCategoryAction(
     return { success: true, message: 'Category updated.' };
   } catch (error: any) {
     console.error('Update Category Error:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+export async function deleteAssetAction(userId: string, assetId: string) {
+  if (!userId || !assetId) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  try {
+    await adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection(CollectionType.ASSETS)
+      .doc(assetId)
+      .delete();
+
+    return { success: true, message: 'Asset deleted successfully.' };
+  } catch (error: any) {
+    console.error('Delete Asset Error:', error);
     return { success: false, message: error.message };
   }
 }

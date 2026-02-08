@@ -13,4 +13,6 @@ export interface Asset {
   multiplier: number;
   current_price: number;
   unrealized_pnl: number;
+  market_value?: number;
+
 }

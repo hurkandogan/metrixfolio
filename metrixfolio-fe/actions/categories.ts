@@ -1,103 +1,117 @@
 'use server';
 
 import { adminDb } from '@/utils/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
-import { Category, CollectionType } from '@/types/settings';
-import { auth } from 'firebase-admin';
-
-const getConfigRef = (userId: string) =>
-  adminDb
-    .collection(CollectionType.USERS)
-    .doc(userId)
-    .collection(CollectionType.CONFIG)
-    .doc('main');
-
-export async function addCategoryAction(
-  userId: string,
-  name: string,
-  target: number,
-  type: string,
-) {
-  if (!name)
-    return { success: false, message: 'Category name cannot be empty.' };
-
-  try {
-    const newCategory: Category = {
-      id: `cat_${Date.now()}`,
-      name: name.trim(),
-      target_percentage: target,
-      type: type as any,
-    };
-
-    const ref = getConfigRef(userId);
-
-    await ref.set(
-      {
-        categories: FieldValue.arrayUnion(newCategory),
-        base_currency: 'USD',
-      },
-      { merge: true },
-    );
-
-    return {
-      success: true,
-      message: 'Category added',
-      category: newCategory,
-    };
-  } catch (error: any) {
-    console.error('Add Category Error:', error);
-    return { success: false, message: error.message };
-  }
-}
+import { CollectionType, Category } from '@/types/settings';
 
 export async function getCategoriesAction(userId: string): Promise<Category[]> {
+  if (!userId) return [];
+
   try {
-    const doc = await getConfigRef(userId).get();
-    if (doc.exists) {
-      const data = doc.data();
-      return data?.categories || [];
-    }
-    return [];
+    const snapshot = await adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection('categories')
+      .get();
+
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Category[];
   } catch (error) {
     console.error('Get Categories Error:', error);
     return [];
   }
 }
 
-export async function deleteCategoryAction(userId: string, category: Category) {
+export async function addCategoryAction(
+  userId: string,
+  name: string,
+  target: number,
+  type: string,
+  color: string,
+) {
+  if (!userId || !name) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  const id = name.trim().toLowerCase().replace(/\s+/g, '');
+
+  if (!id) {
+    return { success: false, message: 'Invalid category name.' };
+  }
+
   try {
-    await getConfigRef(userId).update({
-      categories: FieldValue.arrayRemove(category),
+    const categoryRef = adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection('categories')
+      .doc(id);
+
+    const doc = await categoryRef.get();
+    if (doc.exists) {
+      return {
+        success: false,
+        message: 'A category with this name (ID) already exists.',
+      };
+    }
+
+    await categoryRef.set({
+      name: name.trim(),
+      target_percentage: target,
+      type,
+      color,
+      updated_at: new Date().toISOString(),
     });
+
     return { success: true };
   } catch (error: any) {
+    console.error('Add Category Error:', error);
     return { success: false, message: error.message };
   }
 }
 
 export async function updateCategoryAction(
   userId: string,
-  updatedCategory: Category,
+  category: Partial<Category> & { color?: string },
 ) {
+  if (!userId || !category.id) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
   try {
-    const ref = getConfigRef(userId);
+    await adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection('categories')
+      .doc(category.id)
+      .update({
+        ...category,
+        updated_at: new Date().toISOString(),
+      });
 
-    const doc = await ref.get();
-    if (!doc.exists) return { success: false, message: 'Config not found' };
-
-    const currentCategories = (doc.data()?.categories as Category[]) || [];
-
-    const newCategories = currentCategories.map((cat) =>
-      cat.id === updatedCategory.id ? updatedCategory : cat,
-    );
-
-    await ref.update({
-      categories: newCategories,
-    });
-
-    return { success: true, message: 'Kategori güncellendi' };
+    return { success: true };
   } catch (error: any) {
-    console.error('Update Error:', error);
+    console.error('Update Category Error:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+export async function deleteCategoryAction(userId: string, category: Category) {
+  if (!userId || !category.id) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  try {
+    await adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection('categories')
+      .doc(category.id)
+      .delete();
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Delete Category Error:', error);
     return { success: false, message: error.message };
   }
 }

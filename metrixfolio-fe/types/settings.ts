@@ -17,6 +17,7 @@ export interface Category {
   name: string;
   target_percentage: number;
   type: CategoryType;
+  color: string;
 }
 
 // Rust backend bu yapıyı bekliyor:

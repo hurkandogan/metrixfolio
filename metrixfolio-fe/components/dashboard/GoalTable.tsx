@@ -19,11 +19,11 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
   const activeRowRef = useRef<HTMLTableRowElement>(null); // Aktif satır referansı
 
   const [config, setConfig] = useState<GrowthWidgetData>({
-    startAmount: 200,
-    targetAmount: 1000000,
     growthRate: 10,
     milestones: [],
   });
+
+  console.log(config)
 
   const [tableData, setTableData] = useState<any[]>([]);
 
@@ -56,34 +56,36 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
   // 2. Tablo Hesaplama (FIXED)
   useEffect(() => {
     const rows = [];
-    let currentStepStart = config.startAmount; // <--- DÜZELTME: Direkt startAmount ile başlıyoruz
-    let step = 1;
-    const rate = 0.1; // 10% fixed growth rate
+    const BASE_AMOUNT = 1000; // Sabit başlangıç
+    const rate = (config.growthRate || 10) / 100;
 
-    // Tabloyu sonsuza kadar uzatmak yerine, mevcut değerin 2 katına kadar veya en az 20 adım gösterelim.
-    const stopValue = Math.max(currentValue * 2, config.startAmount * 10);
+    // Aktif Adımı Bulma (Matematiksel)
+    // Formül: Step = log_(1+rate) (Current / Base)
+    let activeStep = 1;
+    if (currentValue > BASE_AMOUNT) {
+      activeStep = Math.floor(Math.log(currentValue / BASE_AMOUNT) / Math.log(1 + rate)) + 1;
+    }
 
-    while (true) {
-      const growthAmount = currentStepStart * rate;
-      const endValue = currentStepStart + growthAmount;
+    // Gösterilecek Aralık: Aktif adımın 5 öncesi ve 10 sonrası
+    const startStep = Math.max(1, activeStep - 5);
+    const endStep = activeStep + 10;
+
+    for (let step = startStep; step <= endStep; step++) {
+      // Adım değerlerini hesapla: Base * (1+r)^(step-1)
+      const start = BASE_AMOUNT * Math.pow(1 + rate, step - 1);
+      const end = BASE_AMOUNT * Math.pow(1 + rate, step);
+      const growth = end - start;
 
       // Milestone Eşleşmesi (Database'den gelen)
       const milestone = config.milestones?.find((m) => m.step === step);
 
       rows.push({
         step,
-        start: currentStepStart,
-        growth: growthAmount,
-        end: endValue,
+        start: start,
+        growth: growth,
+        end: end,
         reachedDate: milestone?.date || null,
       });
-
-      // Bir sonraki adımın başlangıcı, bu adımın bitişidir
-      currentStepStart = endValue;
-      step++;
-
-      if (currentStepStart > stopValue && step > 20) break;
-      if (step > 1000) break; // Safety break
     }
     setTableData(rows);
   }, [config, currentValue]);
@@ -99,19 +101,8 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     }
   }, [tableData]);
 
-  // --- FİLTRELEME MANTIĞI ---
-  // Aktif satırın indeksini bul
-  const activeIndex = tableData.findIndex(
-    (row) => currentValue >= row.start && currentValue < row.end,
-  );
-
-  // Eğer aktif satır yoksa (hedef bittiyse), listenin sonunu baz al
-  const safeActiveIndex =
-    activeIndex === -1 ? tableData.length - 1 : activeIndex;
-
-  // Sadece son 5 tamamlanan adımı + aktif adımı + gelecek adımları göster
-  const startIndex = Math.max(0, safeActiveIndex - 5);
-  const visibleRows = tableData.slice(startIndex);
+  // Tablo verisi zaten filtrelenmiş olarak geliyor
+  const visibleRows = tableData;
 
   return (
     <div className="card bg-base-100 border-base-200 flex h-full flex-col border shadow-xl">
@@ -129,23 +120,19 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
               <th>#</th>
               <th>Start</th>
               <th>Target (End)</th>
-              <th>Progress</th> {/* YENİ KOLON */}
-              <th>Gap (To Go)</th> {/* YENİ KOLON */}
+              <th>Progress</th>
+              <th>Gap (To Go)</th>
               <th>Date</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.map((row) => {
-              // Mantık: Şu anki param, bu adımın başlangıcından büyük ama bitişinden küçükse -> BURADAYIM
               const isCompleted = currentValue >= row.end;
               const isActive =
                 currentValue >= row.start && currentValue < row.end;
 
-              // Hedefe ne kadar kaldı?
               const gap = row.end - currentValue;
 
-              // İlerleme Yüzdesi (Sadece bu adım için)
-              // Formül: (Mevcut - Başlangıç) / (Bitiş - Başlangıç)
               const stepProgress = isActive
                 ? Math.min(
                     100,
@@ -159,10 +146,21 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                   ? 100
                   : 0;
 
+              const progressColor =
+                stepProgress < 25
+                  ? 'progress-error'
+                  : stepProgress < 55
+                    ? 'progress-warning'
+                    : stepProgress < 80
+                      ? 'progress-info'
+                      : 'progress-success';
+              
+              console.log(row)
+
               return (
                 <tr
                   key={row.step}
-                  ref={isActive ? activeRowRef : null} // Referansı aktif satıra veriyoruz
+                  ref={isActive ? activeRowRef : null}
                   className={
                     isActive
                       ? 'bg-primary/5 border-primary border-l-4 shadow-sm'
@@ -186,7 +184,7 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                     {isActive ? (
                       <div className="flex flex-col gap-1">
                         <progress
-                          className="progress progress-primary w-full"
+                          className={`progress w-full ${progressColor}`}
                           value={stepProgress}
                           max="100"
                         ></progress>

@@ -1,39 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
+import { act } from 'react';
 import { StatCards } from '@/components/dashboard/StatCards';
-import { AllocationChart } from '@/components/dashboard/AllocationChart';
 import { GoalTable } from '@/components/dashboard/GoalTable';
 import { useAuth } from '@/context/AuthProvider';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { CategoryCards } from '@/components/dashboard/CategoryCards';
 
 export default function Dashboard() {
-  const { portfolio, isLoading, isError } = usePortfolio();
+  const { portfolio, isLoading, isError, history } = usePortfolio();
 
-  console.log(portfolio);
-
-  const targetChartData = useMemo(() => {
-    if (!portfolio?.categories) return [];
-    return Object.values(portfolio.categories).map((cat) => ({
-      name: `${cat.name}`,
-      value: cat.target_percentage,
-    }));
-  }, [portfolio]);
-
-  const actualChartData = useMemo(() => {
-    if (!portfolio?.categories) return [];
-    return Object.values(portfolio.categories).map((cat) => ({
-      name: `${cat.name}`,
-      value: parseFloat(cat.actual_percentage.toFixed(2)),
-    }));
-  }, [portfolio]);
-
-  const goalPercentage = useMemo(() => {
-    const GOAL_AMOUNT = 10000;
-    const current = portfolio?.total_value || 0;
-    return Math.min((current / GOAL_AMOUNT) * 100, 100); // Max %100 olsun
-  }, [portfolio]);
+  // Tarihçedeki son kaydı (bir önceki gün) al
+  const lastHistory = history && history.length > 0 ? history[history.length - 1] : undefined;
 
   if (isLoading) {
     return (
@@ -62,17 +40,16 @@ export default function Dashboard() {
           totalInvested={portfolio?.total_cost || 0}
           totalProfit={portfolio?.total_pnl || 0}
           profitPercentage={portfolio?.pnl_percentage || 0}
-          goalPercentage={goalPercentage}
+          prevTotalValue={lastHistory?.total_market_value}
+          prevInvested={lastHistory?.total_cost_basis}
         />
 
         {portfolio?.categories && (
-          <CategoryCards categories={portfolio.categories} />
+          <CategoryCards 
+            categories={portfolio.categories} 
+            history={history || []} 
+          />
         )}
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <AllocationChart title="Target Allocation" data={targetChartData} />
-          <AllocationChart title="Actual Allocation" data={actualChartData} />
-        </div>
 
         <div className="w-full">
           <div className="lg:col-span-2">

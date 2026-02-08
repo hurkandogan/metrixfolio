@@ -1,7 +1,6 @@
 'use client';
 
 import CategoryManager from './components/CategoryManager';
-// import ConnectionManager from './components/ConnectionManager';
 
 export default function SettingsPage() {
   return (
@@ -24,25 +23,6 @@ export default function SettingsPage() {
           className="tab-content bg-base-100 border-base-300 rounded-box p-6"
         >
           <CategoryManager />
-        </div>
-
-        {/* TAB 2: Connections in TODO */}
-        <input
-          type="radio"
-          name="settings_tabs"
-          role="tab"
-          className="tab"
-          aria-label="Connections"
-        />
-        <div
-          role="tabpanel"
-          className="tab-content bg-base-100 border-base-300 rounded-box p-6"
-        >
-          <h2 className="mb-4 text-xl font-bold">Connections</h2>
-          <p className="opacity-70">
-            API Keys and Broker connections will be here.
-          </p>
-          {/* <ConnectionManager /> */}
         </div>
       </div>
     </div>
