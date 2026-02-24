@@ -36,8 +36,13 @@ interface CategoryCardsProps {
   history: PortfolioHistory[];
 }
 
-export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) => {
-  const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
+export const CategoryCards: FC<CategoryCardsProps> = ({
+  categories,
+  history,
+}) => {
+  const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(
+    null,
+  );
   const modalRef = useRef<HTMLDialogElement>(null);
 
   const handleCardClick = (cat: CategoryData) => {
@@ -83,24 +88,31 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
               >
                 {selectedCategory.name} Analysis
               </h3>
-              
+
               <div className="mt-4 h-75 w-full">
                 {chartData.length > 1 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                      <XAxis 
-                        dataKey="date" 
-                        tick={{ fontSize: 12 }} 
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        opacity={0.3}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12 }}
                         minTickGap={30}
                       />
-                      <YAxis 
+                      <YAxis
                         tick={{ fontSize: 12 }}
                         tickFormatter={(val) => `$${val}`}
                         width={60}
                       />
-                      <Tooltip 
-                        formatter={(value: any) => [formatCurrency(value), 'Value']}
+                      <Tooltip
+                        formatter={(value: any) => [
+                          formatCurrency(value),
+                          'Value',
+                        ]}
                         labelStyle={{ color: 'black' }}
                       />
                       <Line
@@ -122,13 +134,17 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                <div className="rounded-lg bg-base-200 p-3">
+                <div className="bg-base-200 rounded-lg p-3">
                   <div className="opacity-60">Current Value</div>
-                  <div className="text-xl font-bold">{formatCurrency(selectedCategory.value)}</div>
+                  <div className="text-xl font-bold">
+                    {formatCurrency(selectedCategory.value)}
+                  </div>
                 </div>
-                <div className="rounded-lg bg-base-200 p-3">
+                <div className="bg-base-200 rounded-lg p-3">
                   <div className="opacity-60">Allocation</div>
-                  <div className="text-xl font-bold">{selectedCategory.actual_percentage.toFixed(2)}%</div>
+                  <div className="text-xl font-bold">
+                    {selectedCategory.actual_percentage.toFixed(2)}%
+                  </div>
                 </div>
               </div>
             </>
@@ -159,8 +175,11 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
           let progressColor = 'progress-success';
           let rebalanceHint = '';
 
-          const lastHistory = history.length > 0 ? history[history.length - 1] : null;
-          const prevAlloc = lastHistory?.allocation.find((a) => a.category_id === cat.id);
+          const lastHistory =
+            history.length > 0 ? history[history.length - 2] : null;
+          const prevAlloc = lastHistory?.allocation.find(
+            (a) => a.category_id === cat.id,
+          );
           const dailyPnl = prevAlloc ? cat.value - prevAlloc.value : 0;
           const isProfit = dailyPnl >= 0;
 
@@ -201,7 +220,9 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
                   </h3>
                   <p className="text-sm opacity-80">
                     You have{' '}
-                    <span className="font-bold">{formatCurrency(cat.value)}</span>{' '}
+                    <span className="font-bold">
+                      {formatCurrency(cat.value)}
+                    </span>{' '}
                     in uncategorized assets.
                   </p>
                   <div className="card-actions mt-4 justify-end">
@@ -218,7 +239,7 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
             <div
               key={cat.id}
               onClick={() => handleCardClick(cat)}
-              className="card bg-base-100 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md cursor-pointer border-2"
+              className="card bg-base-100 cursor-pointer border-2 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md"
               style={{ borderColor: cat.color || 'transparent' }}
             >
               <div className="card-body p-5">
@@ -231,13 +252,21 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
                       {formatCurrency(cat.value)}
                     </span>
                     {prevAlloc && (
-                      <div className={`flex items-center text-xs font-bold ${isProfit ? 'text-success' : 'text-error'} mt-1`}>
-                        {isProfit ? <FiArrowUp className="mr-1" /> : <FiArrowDown className="mr-1" />}
+                      <div
+                        className={`flex items-center text-xs font-bold ${isProfit ? 'text-success' : 'text-error'} mt-1`}
+                      >
+                        {isProfit ? (
+                          <FiArrowUp className="mr-1" />
+                        ) : (
+                          <FiArrowDown className="mr-1" />
+                        )}
                         {formatCurrency(Math.abs(dailyPnl))}
                       </div>
                     )}
                   </div>
-                  <div className={`badge ${badgeClass} gap-1 text-xs font-bold`}>
+                  <div
+                    className={`badge ${badgeClass} gap-1 text-xs font-bold`}
+                  >
                     <Icon /> {statusText}
                   </div>
                 </div>
@@ -254,7 +283,9 @@ export const CategoryCards: FC<CategoryCardsProps> = ({ categories, history }) =
                   <progress
                     className={`progress w-full ${progressColor}`}
                     value={cat.actual_percentage}
-                    max={cat.target_percentage > 0 ? cat.target_percentage : 100}
+                    max={
+                      cat.target_percentage > 0 ? cat.target_percentage : 100
+                    }
                   ></progress>
                 </div>
 

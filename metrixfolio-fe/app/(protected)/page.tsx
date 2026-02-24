@@ -1,17 +1,15 @@
 'use client';
 
-import { act } from 'react';
 import { StatCards } from '@/components/dashboard/StatCards';
 import { GoalTable } from '@/components/dashboard/GoalTable';
-import { useAuth } from '@/context/AuthProvider';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { CategoryCards } from '@/components/dashboard/CategoryCards';
 
 export default function Dashboard() {
   const { portfolio, isLoading, isError, history } = usePortfolio();
 
-  // Tarihçedeki son kaydı (bir önceki gün) al
-  const lastHistory = history && history.length > 0 ? history[history.length - 1] : undefined;
+  const lastHistory =
+    history && history.length > 0 ? history[history.length - 2] : undefined;
 
   if (isLoading) {
     return (
@@ -25,7 +23,6 @@ export default function Dashboard() {
   if (isError) {
     return (
       <div role="alert" className="alert alert-error">
-        <svg></svg>
         <span>Portfolio fetch error: {isError.message}</span>
       </div>
     );
@@ -45,9 +42,9 @@ export default function Dashboard() {
         />
 
         {portfolio?.categories && (
-          <CategoryCards 
-            categories={portfolio.categories} 
-            history={history || []} 
+          <CategoryCards
+            categories={portfolio.categories}
+            history={history || []}
           />
         )}
 

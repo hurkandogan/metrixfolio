@@ -33,13 +33,14 @@ export function usePortfolio() {
   const { data, error, isLoading, mutate } = useSWR(
     user ? ['portfolio-data', user.uid] : null,
     async ([_, userId]) => {
-      const [categories, assets, transactions, rates, history] = await Promise.all([
-        getCategoriesAction(userId),
-        getAssetsAction(userId),
-        getTransactionsAction(userId),
-        getExchangeRatesAction(),
-        getPortfolioHistoryAction(userId),
-      ]);
+      const [categories, assets, transactions, rates, history] =
+        await Promise.all([
+          getCategoriesAction(userId),
+          getAssetsAction(userId),
+          getTransactionsAction(userId),
+          getExchangeRatesAction(),
+          getPortfolioHistoryAction(userId),
+        ]);
 
       const rateMap = new Map<string, number>();
       rates.forEach((r) => {
@@ -61,13 +62,24 @@ export function usePortfolio() {
       const categoryValues = new Map<string, number>();
 
       assets.forEach((asset) => {
-        totalValue += asset.market_value || 0;
-        totalUnrealizedPnl += asset.unrealized_pnl || 0;
+        const assetCurrency = asset.currency || 'USD';
+        const marketValueUsd = convertToUsd(
+          asset.market_value || 0,
+          assetCurrency,
+        );
+        
+        const unrealizedPnlUsd = convertToUsd(
+          asset.unrealized_pnl || 0,
+          assetCurrency,
+        );
+
+        totalValue += marketValueUsd;
+        totalUnrealizedPnl += unrealizedPnlUsd;
 
         const catId = asset.category_id || 'uncategorized';
         categoryValues.set(
           catId,
-          (categoryValues.get(catId) || 0) + (asset.market_value || 0),
+          (categoryValues.get(catId) || 0) + marketValueUsd,
         );
       });
 
@@ -99,8 +111,6 @@ export function usePortfolio() {
           color: cat.color,
         };
       });
-
-      console.log(categories)
 
       const summary: PortfolioSummary = {
         total_value: totalValue,

@@ -1,30 +1,24 @@
 'use client';
-
 import { useTheme } from '@/context/ThemeProvider';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRef } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/utils/firebase';
-// icons
-import { FiMoon, FiSun, FiLogOut, FiDatabase } from 'react-icons/fi';
-import { useAuth } from '@/context/AuthProvider';
-import { useCurrency } from '@/context/CurrencyContext';
+import { FiMoon, FiSun, FiLogOut } from 'react-icons/fi';
 
 export const NavBar = () => {
   const { theme, toggleTheme } = useTheme();
   const currentPathName = usePathname();
   const logoutModalRef = useRef<HTMLDialogElement>(null);
-  const authInfo = useAuth();
-  const { currency, setCurrency } = useCurrency();
 
   const handleLogoutConfirm = async () => {
     logoutModalRef.current?.close();
     try {
       await signOut(auth);
-      console.log('user is logged out');
+      console.log('User is logged out');
     } catch (err) {
-      console.error('logout error: ', err);
+      console.error('Logout error: ', err);
     }
   };
 
@@ -54,14 +48,12 @@ export const NavBar = () => {
       </dialog>
 
       <div className="navbar bg-base-100 sticky top-0 z-50 shadow-sm">
-        {/* Start */}
         <div className="navbar-start">
           <Link href="/" className="btn btn-ghost text-xl normal-case">
             MetrixFolio
           </Link>
         </div>
 
-        {/* Center */}
         <div className="navbar-center hidden lg:flex">
           <ul className="menu menu-horizontal px-1">
             <li>
@@ -99,19 +91,7 @@ export const NavBar = () => {
           </ul>
         </div>
 
-        {/* End */}
         <div className="navbar-end">
-          <select
-            className="select select-ghost select-sm mr-2 w-25 font-bold"
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value as any)}
-          >
-            <option value="USD">🇺🇸 USD</option>
-            <option value="EUR">🇪🇺 EUR</option>
-            <option value="TRY">🇹🇷 TRY</option>
-            {/* <option value="GBP">🇬🇧 GBP</option> */}
-          </select>
-
           <label className="swap swap-rotate btn btn-ghost btn-circle">
             <input
               type="checkbox"

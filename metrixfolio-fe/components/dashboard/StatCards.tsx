@@ -43,25 +43,27 @@ export const StatCards: React.FC<StatCardsProps> = ({
   };
 
   const renderDiff = (current: number, prev: number | undefined) => {
-    if (prev === undefined) return <span className="opacity-60 text-xs">No history</span>;
-    
+    if (prev === undefined)
+      return <span className="text-xs opacity-60">No history</span>;
+
     const diff = current - prev;
-    if (Math.abs(diff) < 0.01) return <span className="opacity-60 text-xs flex items-center gap-1"><FiMinus /> No Change</span>;
+    if (Math.abs(diff) < 0.01)
+      return (
+        <span className="flex items-center gap-1 text-xs opacity-60">
+          <FiMinus /> No Change
+        </span>
+      );
 
     const isPos = diff > 0;
     const color = isPos ? 'text-success' : 'text-error';
     const Icon = isPos ? FiArrowUp : FiArrowDown;
-    
+
     return (
-      <span className={`text-xs font-bold flex items-center gap-1 ${color}`}>
+      <span className={`flex items-center gap-1 text-xs font-bold ${color}`}>
         <Icon /> {formatCurrency(Math.abs(diff))}
       </span>
     );
   };
-
-  const diffValue = prevTotalValue !== undefined ? totalValue - prevTotalValue : 0;
-  const diffInvested = prevInvested !== undefined ? totalInvested - prevInvested : 0;
-  const dailyPnl = diffValue - diffInvested;
 
   const safeGoal = goalAmount > 0 ? goalAmount : 1;
   const goalPercentage = Math.min((totalValue / safeGoal) * 100, 100);
@@ -82,20 +84,17 @@ export const StatCards: React.FC<StatCardsProps> = ({
         <div className="stat-value text-primary text-3xl font-extrabold tracking-tight lg:text-4xl">
           {formatCurrency(totalValue)}
         </div>
-        <div className="stat-desc font-medium mt-1">
+        <div className="stat-desc mt-1 font-medium">
           {renderDiff(totalValue, prevTotalValue)}
         </div>
       </div>
 
-      <div className="stat">
+      <div className="stat flex flex-col gap-1">
         <div className="stat-title font-semibold opacity-70">
           Invested Capital
         </div>
         <div className="stat-value text-3xl font-extrabold tracking-tight lg:text-4xl">
           {formatCurrency(totalInvested)}
-        </div>
-        <div className="stat-desc font-medium mt-1">
-          {renderDiff(totalInvested, prevInvested)}
         </div>
       </div>
 
@@ -106,29 +105,26 @@ export const StatCards: React.FC<StatCardsProps> = ({
         >
           {formatCurrency(totalProfit)}
         </div>
-        <div className="stat-desc flex flex-col gap-0.5 mt-1">
-          <span className={`text-sm font-bold ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}>
-            {formatPercentage(profitPercentage)} (All time)
+        <div className="stat-desc mt-1 flex flex-col">
+          <span
+            className={`text-sm font-bold ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}
+          >
+            {formatPercentage(profitPercentage)}
           </span>
-          {prevTotalValue !== undefined && (
-             <span className={`text-xs flex items-center gap-1 ${dailyPnl >= 0 ? 'text-success' : 'text-error'} opacity-70`}>
-                {dailyPnl >= 0 ? <FiArrowUp/> : <FiArrowDown/>} {formatCurrency(Math.abs(dailyPnl))} (Today)
-             </span>
-           )}
         </div>
       </div>
 
       <div className="stat">
-        <div className="stat-title font-semibold opacity-70 flex justify-between items-center">
+        <div className="stat-title flex items-center justify-between font-semibold opacity-70">
           <span>Goal Target</span>
           <div className="flex items-center gap-1">
-             <span className="text-xs opacity-50">$</span>
-             <input 
-               type="number" 
-               className="input input-ghost input-xs w-24 text-right pr-3 h-6 focus:bg-transparent focus:text-primary font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-               value={goalAmount}
-               onChange={(e) => setGoalAmount(Number(e.target.value))}
-             />
+            <span className="text-xs opacity-50">$</span>
+            <input
+              type="number"
+              className="input input-ghost input-xs focus:text-primary h-6 w-24 [appearance:textfield] pr-3 text-right font-bold focus:bg-transparent [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              value={goalAmount}
+              onChange={(e) => setGoalAmount(Number(e.target.value))}
+            />
           </div>
         </div>
         <div className="stat-value text-secondary text-3xl font-extrabold tracking-tight lg:text-4xl">

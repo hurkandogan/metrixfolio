@@ -1,5 +1,4 @@
 'use client';
-
 import { formatCurrency } from '@/utils/functions';
 import { FC, useEffect, useState, useRef } from 'react';
 import { FiCheckCircle, FiTarget } from 'react-icons/fi';
@@ -23,11 +22,8 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     milestones: [],
   });
 
-  console.log(config)
-
   const [tableData, setTableData] = useState<any[]>([]);
 
-  // 1. Config Yükleme (Sadece user değişince çalışır)
   useEffect(() => {
     if (!user) return;
     getGrowthWidgetAction(user.uid).then((data) => {
@@ -35,11 +31,9 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     });
   }, [user]);
 
-  // 2. Milestone Kontrolü (Value değişince çalışır)
   useEffect(() => {
     if (!user || currentValue <= 0) return;
 
-    // Debounce: Değer her değiştiğinde değil, değişim durduktan 1sn sonra kontrol et
     const timer = setTimeout(() => {
       const runCheck = async () => {
         const res = await checkMilestonesAction(user.uid, currentValue);
@@ -53,32 +47,26 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     return () => clearTimeout(timer);
   }, [user, currentValue]);
 
-  // 2. Tablo Hesaplama (FIXED)
   useEffect(() => {
     const rows = [];
-    const BASE_AMOUNT = 1000; // Sabit başlangıç
+    const BASE_AMOUNT = 1000;
     const rate = (config.growthRate || 10) / 100;
 
-    // Aktif Adımı Bulma (Matematiksel)
-    // Formül: Step = log_(1+rate) (Current / Base)
     let activeStep = 1;
     if (currentValue > BASE_AMOUNT) {
-      activeStep = Math.floor(Math.log(currentValue / BASE_AMOUNT) / Math.log(1 + rate)) + 1;
+      activeStep =
+        Math.floor(Math.log(currentValue / BASE_AMOUNT) / Math.log(1 + rate)) +
+        1;
     }
 
-    // Gösterilecek Aralık: Aktif adımın 5 öncesi ve 10 sonrası
     const startStep = Math.max(1, activeStep - 5);
     const endStep = activeStep + 10;
 
     for (let step = startStep; step <= endStep; step++) {
-      // Adım değerlerini hesapla: Base * (1+r)^(step-1)
       const start = BASE_AMOUNT * Math.pow(1 + rate, step - 1);
       const end = BASE_AMOUNT * Math.pow(1 + rate, step);
       const growth = end - start;
-
-      // Milestone Eşleşmesi (Database'den gelen)
       const milestone = config.milestones?.find((m) => m.step === step);
-
       rows.push({
         step,
         start: start,
@@ -90,10 +78,8 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     setTableData(rows);
   }, [config, currentValue]);
 
-  // 3. Otomatik Scroll
   useEffect(() => {
     if (activeRowRef.current) {
-      // 'block: center' tüm sayfayı kaydırabilir, 'nearest' sadece container içinde görünür yapar.
       activeRowRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
@@ -101,19 +87,17 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     }
   }, [tableData]);
 
-  // Tablo verisi zaten filtrelenmiş olarak geliyor
   const visibleRows = tableData;
 
   return (
     <div className="card bg-base-100 border-base-200 flex h-full flex-col border shadow-xl">
       <div className="card-body flex-none p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="card-title text-lg">🚀 Growth Targets</h2>
+          <h2 className="card-title text-lg">Growth Targets 🚀</h2>
         </div>
       </div>
 
-      {/* Tablo Alanı (Scrollable) */}
-      <div className="max-h-[500px] flex-1 overflow-x-auto overflow-y-auto">
+      <div className="max-h-125 flex-1 overflow-x-auto overflow-y-auto">
         <table className="table-pin-rows table-xs md:table-sm table">
           <thead>
             <tr>
@@ -154,8 +138,6 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                     : stepProgress < 80
                       ? 'progress-info'
                       : 'progress-success';
-              
-              console.log(row)
 
               return (
                 <tr
@@ -172,14 +154,12 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                   <td className="font-bold opacity-50">{row.step}</td>
                   <td className="font-mono">{formatCurrency(row.start)}</td>
 
-                  {/* HEDEF DEĞERİ */}
                   <td
                     className={`font-mono font-bold ${isCompleted ? 'text-success' : ''}`}
                   >
                     {formatCurrency(row.end)}
                   </td>
 
-                  {/* PROGRESS BAR */}
                   <td className="w-32 align-middle">
                     {isActive ? (
                       <div className="flex flex-col gap-1">
@@ -209,7 +189,6 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                     )}
                   </td>
 
-                  {/* FARK (GAP) */}
                   <td>
                     {isActive ? (
                       <span className="badge badge-sm badge-warning font-mono">
@@ -222,7 +201,6 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
                     )}
                   </td>
 
-                  {/* TARİH */}
                   <td>
                     {row.reachedDate ? (
                       <div className="badge badge-success badge-outline gap-1 text-xs whitespace-nowrap">
