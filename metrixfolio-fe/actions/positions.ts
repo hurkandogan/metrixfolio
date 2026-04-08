@@ -16,7 +16,6 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
   if (!userId) return [];
 
   try {
-    
     const [assetsSnapshot, rates] = await Promise.all([
       adminDb
         .collection(CollectionType.USERS)
@@ -41,55 +40,31 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
       return amount;
     };
 
-    const userSymbols = new Set<string>();
-    assetsSnapshot.docs.forEach((doc) => {
-      const s = doc.data().symbol;
-      if (s) userSymbols.add(s);
-    });
-    const uniqueSymbols = Array.from(userSymbols);
-
-    const priceMap = new Map<string, number>();
-
-    if (uniqueSymbols.length > 0) {
-      const chunkSize = 30;
-      const chunks = [];
-      for (let i = 0; i < uniqueSymbols.length; i += chunkSize) {
-        chunks.push(uniqueSymbols.slice(i, i + chunkSize));
-      }
-
-      const promises = chunks.map((chunk) =>
-        adminDb.collection('market_data').where('symbol', 'in', chunk).get(),
-      );
-      const snapshots = await Promise.all(promises);
-
-      snapshots.forEach((snap) => {
-        snap.docs.forEach((doc) => {
-          const data = doc.data();
-          if (data.symbol && data.price) {
-            priceMap.set(data.symbol, Number(data.price));
-          }
-        });
-      });
-    }
-
     const assets: Asset[] = assetsSnapshot.docs.map((doc) => {
       const data = doc.data();
       const symbol = data.symbol || '';
       const amount = parseFloat(data.amount) || 0;
-      const avgCost = parseFloat(data.avg_cost) || 0;
       const multiplier = parseFloat(data.multiplier) || 1;
       const currency = data.currency || 'USD';
+      const type = data.type || 'STOCK';
 
-      let currentPrice = parseFloat(data.current_price) || 0;
+      let avgCost = parseFloat(data.avg_cost) || 0;
 
-      if (priceMap.has(symbol)) {
-        currentPrice = priceMap.get(symbol)!;
+      // IBKR Opsiyonlarında avg_cost toplam maliyet olarak gelir. UI'da fiyatla yan yana
+      // mantıklı görünmesi için (örn: $169 yerine $1.69) çarpana bölüyoruz.
+      if (data.source === 'IBKR' && type === 'OPTION' && multiplier > 1) {
+        avgCost = avgCost / multiplier;
+      }
+
+      const currentPrice = parseFloat(data.current_price) || 0;
+      let unrealizedPnl = parseFloat(data.unrealized_pnl) || 0;
+
+      // Manuel varlıkların PnL'si DB'de güncel olmayabilir, anlık hesaplıyoruz.
+      if (data.source !== 'IBKR') {
+        unrealizedPnl = (currentPrice - avgCost) * amount * multiplier;
       }
 
       const marketValue = amount * currentPrice * multiplier;
-      // TODO this is not working with options
-      const calculatedUnrealizedPnl =
-        (currentPrice - avgCost) * amount * multiplier;
 
       return {
         id: doc.id,
@@ -99,7 +74,7 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
         avg_cost: convertToUsd(avgCost, currency),
         current_price: convertToUsd(currentPrice, currency),
         market_value: convertToUsd(marketValue, currency),
-        unrealized_pnl: convertToUsd(calculatedUnrealizedPnl, currency),
+        unrealized_pnl: convertToUsd(unrealizedPnl, currency),
         currency: 'USD',
         source: data.source || 'MANUAL',
         category_id: data.category_id || 'uncategorized',
