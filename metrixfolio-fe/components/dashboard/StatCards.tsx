@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiArrowUp, FiArrowDown, FiMinus } from 'react-icons/fi';
+import { useDebts } from '@/hooks/useDebts';
 
 interface StatCardsProps {
   totalValue: number;
@@ -23,6 +24,9 @@ export const StatCards: React.FC<StatCardsProps> = ({
   prevInvested,
 }) => {
   const [goalAmount, setGoalAmount] = useState<number>(10000);
+  const { totalDebtUsd } = useDebts();
+  const netAmount = totalProfit - totalDebtUsd;
+  const netPercentage = totalValue > 0 ? (netAmount / totalValue) * 100 : 0;
 
   useEffect(() => {
     const nextGoal =
@@ -105,11 +109,14 @@ export const StatCards: React.FC<StatCardsProps> = ({
         >
           {formatCurrency(totalProfit)}
         </div>
-        <div className="stat-desc mt-1 flex flex-col">
+        <div className="stat-desc mt-1 flex flex-row items-center justify-between w-full">
           <span
-            className={`text-sm font-bold ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}
+            className={`text-sm font-bold flex-shrink-0 ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}
           >
             {formatPercentage(profitPercentage)}
+          </span>
+          <span className={`ml-auto flex items-center text-xs font-semibold whitespace-nowrap pl-2 ${netAmount >= 0 ? 'text-success' : 'text-error'}`}>
+            Net: {formatPercentage(netPercentage)} | {formatCurrency(netAmount)}
           </span>
         </div>
       </div>
