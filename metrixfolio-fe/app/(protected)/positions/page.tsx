@@ -3,17 +3,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthProvider'; // Auth context'in yolu
 import {
-  FiRefreshCw,
   FiAlertCircle,
   FiCheckCircle,
   FiTag,
   FiEdit2,
   FiTrash2,
+  FiChevronUp,
+  FiChevronDown,
+  FiSearch,
 } from 'react-icons/fi';
-import { getAuth } from 'firebase/auth';
 import {
   getAssetsAction,
-  updateAssetCategoryAction,
+  updateAssetAction,
   deleteAssetAction,
 } from '@/actions/positions';
 import { Asset } from '@/types/positions';
@@ -21,14 +22,25 @@ import { Category } from '@/types/settings';
 import { getCategoriesAction } from '@/actions/categories';
 import AddManualAssetModal from './components/AddManualAssetsModal';
 
+type SortKey = 'source' | 'symbol' | 'category_id' | 'amount' | 'avg_cost' | 'current_price' | 'market_value' | 'unrealized_pnl';
+
 export default function PositionsPage() {
   const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedAsset, setSelectedAsset] = useState<any | null>(null); // Hangi hisseyi düzenliyoruz?
-  const [selectedCategoryId, setSelectedCategoryId] = useState(''); // Hangi kategoriyi seçtik?
+  const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    symbol: '',
+    name: '',
+    amount: '',
+    avg_cost: '',
+    currency: 'USD',
+    category_id: '',
+  });
   const modalRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -37,33 +49,67 @@ export default function PositionsPage() {
 
   const loadData = async () => {
     if (!user) return;
-    const [assetsData, categoriesData] = await Promise.all([
+    let [assetsData, categoriesData] = await Promise.all([
       getAssetsAction(user.uid),
       getCategoriesAction(user.uid),
     ]);
+
+    // Recalculate PnL on the frontend to ensure accuracy and prevent totals from breaking due to NaN
+    assetsData = assetsData.map((asset) => {
+      const amount = parseFloat(asset.amount?.toString()) || 0;
+      const currentPrice = parseFloat(asset.current_price?.toString()) || 0;
+      const avgCost = parseFloat(asset.avg_cost?.toString()) || 0;
+      const multiplier = parseFloat(asset.multiplier?.toString()) || 1;
+
+      const marketValue = amount * currentPrice * multiplier;
+      const unrealizedPnl = (currentPrice - avgCost) * amount * multiplier;
+
+      return {
+        ...asset,
+        amount,
+        current_price: currentPrice,
+        avg_cost: avgCost,
+        market_value: marketValue,
+        unrealized_pnl: unrealizedPnl,
+      };
+    });
+
     setAssets(assetsData);
     setCategories(categoriesData);
   };
 
-  const openCategorizeModal = (asset: any) => {
+  const openEditModal = (asset: any) => {
     setSelectedAsset(asset);
-    setSelectedCategoryId(''); // Sıfırla
+    setEditForm({
+      symbol: asset.symbol || '',
+      name: asset.name || '',
+      amount: asset.amount?.toString() || '',
+      avg_cost: asset.original_avg_cost?.toString() || asset.avg_cost?.toString() || '',
+      currency: asset.original_currency || asset.currency || 'USD',
+      category_id: asset.category_id !== 'uncategorized' ? asset.category_id : '',
+    });
     modalRef.current?.showModal();
   };
 
-  const handleSaveCategory = async () => {
-    if (!user || !selectedAsset || !selectedCategoryId) return;
+  const handleSaveEdit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!user || !selectedAsset) return;
 
-    const res = await updateAssetCategoryAction(
+    const res = await updateAssetAction(
       user.uid,
       selectedAsset.id,
-      selectedCategoryId,
+      {
+        symbol: editForm.symbol,
+        name: editForm.name,
+        amount: parseFloat(editForm.amount),
+        avg_cost: parseFloat(editForm.avg_cost),
+        currency: editForm.currency,
+        category_id: editForm.category_id || 'uncategorized',
+      }
     );
 
     if (res.success) {
-      // Modalı kapat
       modalRef.current?.close();
-      // Listeyi tazele (Böylece hisse Inbox'tan düşüp aşağıya inecek)
       await loadData();
     } else {
       alert('Hata: ' + res.message);
@@ -108,6 +154,53 @@ export default function PositionsPage() {
     (a) => a.category_id !== 'uncategorized',
   );
 
+  const handleSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const filteredAndSortedAssets = portfolioAssets
+    .filter((asset) => {
+      const q = searchQuery.toLowerCase();
+      return (
+        asset.symbol.toLowerCase().includes(q) ||
+        asset.name.toLowerCase().includes(q) ||
+        getCategoryName(asset.category_id).toLowerCase().includes(q) ||
+        asset.source.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (!sortConfig) return 0;
+      const { key, direction } = sortConfig;
+
+      let valA: any = a[key as keyof Asset];
+      let valB: any = b[key as keyof Asset];
+
+      if (key === 'category_id') {
+        valA = getCategoryName(a.category_id);
+        valB = getCategoryName(b.category_id);
+      } else if (key === 'unrealized_pnl') {
+        valA = parseFloat(a.unrealized_pnl as any) || 0;
+        valB = parseFloat(b.unrealized_pnl as any) || 0;
+      }
+
+      if (valA < valB) {
+        return direction === 'asc' ? -1 : 1;
+      }
+      if (valA > valB) {
+        return direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortConfig?.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <FiChevronUp className="inline" /> : <FiChevronDown className="inline" />;
+  };
+
   // --- TOPLAMLAR ---
   const totalMarketValue = portfolioAssets.reduce(
     (sum, asset) => sum + (asset.market_value || 0),
@@ -123,52 +216,121 @@ export default function PositionsPage() {
       <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
         <div className="modal-box">
           <h3 className="flex items-center gap-2 text-lg font-bold">
-            <FiTag /> Categorize Asset
+            <FiEdit2 /> Edit Asset
           </h3>
 
           {selectedAsset && (
-            <div className="space-y-4 py-4">
+            <form onSubmit={handleSaveEdit} className="space-y-4 py-4">
               <div className="alert alert-info py-2 text-sm shadow-sm">
                 <span>
-                  Assigning category for <strong>{selectedAsset.symbol}</strong>{' '}
-                  ({selectedAsset.name})
+                  Editing <strong>{selectedAsset.symbol}</strong> ({selectedAsset.name})
                 </span>
               </div>
 
-              <div className="form-control w-full">
-                <label className="label">
-                  <span className="label-text">Select Category</span>
-                </label>
-                <select
-                  className="select select-bordered w-full"
-                  value={selectedCategoryId}
-                  onChange={(e) => setSelectedCategoryId(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Choose a category...
-                  </option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name} ({cat.target_percentage}%)
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Symbol</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    className="input input-bordered uppercase"
+                    value={editForm.symbol}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, symbol: e.target.value.toLocaleUpperCase() })
+                    }
+                  />
+                </div>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Name</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    className="input input-bordered"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  />
+                </div>
               </div>
-            </div>
-          )}
 
-          <div className="modal-action">
-            <form method="dialog">
-              <button className="btn btn-ghost">Cancel</button>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Quantity</span>
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    className="input input-bordered"
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                  />
+                </div>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Avg Cost (Unit)</span>
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    className="input input-bordered"
+                    value={editForm.avg_cost}
+                    onChange={(e) => setEditForm({ ...editForm, avg_cost: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Currency</span>
+                  </label>
+                  <select
+                    className="select select-bordered"
+                    value={editForm.currency}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, currency: e.target.value })
+                    }
+                  >
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="TRY">TRY</option>
+                  </select>
+                </div>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Category</span>
+                  </label>
+                  <select
+                    className="select select-bordered w-full"
+                    value={editForm.category_id}
+                    onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })}
+                  >
+                    <option value="" disabled>
+                      Choose a category...
+                    </option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name} ({cat.target_percentage}%)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-action">
+                <button type="button" className="btn btn-ghost" onClick={() => modalRef.current?.close()}>Cancel</button>
+                <button type="submit" className="btn btn-primary">
+                  Save
+                </button>
+              </div>
             </form>
-            <button
-              className="btn btn-primary"
-              onClick={handleSaveCategory}
-              disabled={!selectedCategoryId}
-            >
-              Save
-            </button>
-          </div>
+          )}
         </div>
         <form method="dialog" className="modal-backdrop">
           <button>close</button>
@@ -182,7 +344,17 @@ export default function PositionsPage() {
             Manage your assets and categories
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/50" />
+            <input
+              type="text"
+              placeholder="Search assets..."
+              className="input input-bordered w-full max-w-xs pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
           <AddManualAssetModal categories={categories} onSuccess={loadData} />
         </div>
       </div>
@@ -238,7 +410,7 @@ export default function PositionsPage() {
                       <td>
                         <button
                           className="btn btn-xs btn-outline btn-warning gap-1"
-                          onClick={() => openCategorizeModal(asset)}
+                          onClick={() => openEditModal(asset)}
                         >
                           <FiTag /> Categorize
                         </button>
@@ -265,19 +437,19 @@ export default function PositionsPage() {
             <table className="table">
               <thead>
                 <tr className="bg-base-200/50">
-                  <th>Source</th>
-                  <th>Symbol</th>
-                  <th>Category</th>
-                  <th className="text-right">Qty</th>
-                  <th className="text-right">Avg Cost</th>
-                  <th className="text-right">Price</th>
-                  <th className="text-right">Value (Est.)</th>
-                  <th className="text-right">P/L</th>
+                  <th className="cursor-pointer hover:bg-base-200" onClick={() => handleSort('source')}>Source {renderSortIcon('source')}</th>
+                  <th className="cursor-pointer hover:bg-base-200" onClick={() => handleSort('symbol')}>Symbol {renderSortIcon('symbol')}</th>
+                  <th className="cursor-pointer hover:bg-base-200" onClick={() => handleSort('category_id')}>Category {renderSortIcon('category_id')}</th>
+                  <th className="cursor-pointer hover:bg-base-200 text-right" onClick={() => handleSort('amount')}>Qty {renderSortIcon('amount')}</th>
+                  <th className="cursor-pointer hover:bg-base-200 text-right" onClick={() => handleSort('avg_cost')}>Avg Cost {renderSortIcon('avg_cost')}</th>
+                  <th className="cursor-pointer hover:bg-base-200 text-right" onClick={() => handleSort('current_price')}>Price {renderSortIcon('current_price')}</th>
+                  <th className="cursor-pointer hover:bg-base-200 text-right" onClick={() => handleSort('market_value')}>Value (Est.) {renderSortIcon('market_value')}</th>
+                  <th className="cursor-pointer hover:bg-base-200 text-right" onClick={() => handleSort('unrealized_pnl')}>P/L {renderSortIcon('unrealized_pnl')}</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {portfolioAssets.map((asset) => (
+                {filteredAndSortedAssets.map((asset) => (
                   <tr key={asset.id} className="hover">
                     <td>
                       <span
@@ -326,8 +498,8 @@ export default function PositionsPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           className="btn btn-square btn-ghost btn-xs"
-                          onClick={() => openCategorizeModal(asset)}
-                          title="Edit Category"
+                          onClick={() => openEditModal(asset)}
+                          title="Edit Position"
                         >
                           <FiEdit2 />
                         </button>
@@ -342,7 +514,7 @@ export default function PositionsPage() {
                     </td>
                   </tr>
                 ))}
-                {portfolioAssets.length === 0 && (
+                {filteredAndSortedAssets.length === 0 && (
                   <tr>
                     <td colSpan={9} className="py-8 text-center opacity-50">
                       No categorized assets found.

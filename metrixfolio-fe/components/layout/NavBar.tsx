@@ -82,6 +82,14 @@ export const NavBar = () => {
             </li>
             <li>
               <Link
+                href={'/options'}
+                className={`${currentPathName === '/options' ? 'menu-active' : ''}`}
+              >
+                Options
+              </Link>
+            </li>
+            <li>
+              <Link
                 href={'/debts'}
                 className={`${currentPathName === '/debts' ? 'menu-active' : ''}`}
               >

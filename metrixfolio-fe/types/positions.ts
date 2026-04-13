@@ -15,4 +15,7 @@ export interface Asset {
   unrealized_pnl: number;
   market_value?: number;
 
+  original_currency?: string;
+  original_avg_cost?: number;
+  original_current_price?: number;
 }

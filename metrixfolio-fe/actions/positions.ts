@@ -79,6 +79,10 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
         source: data.source || 'MANUAL',
         category_id: data.category_id || 'uncategorized',
         multiplier: multiplier,
+
+        original_currency: currency,
+        original_avg_cost: avgCost,
+        original_current_price: currentPrice,
       };
     });
 
@@ -112,6 +116,64 @@ export async function updateAssetCategoryAction(
     return { success: true, message: 'Category updated.' };
   } catch (error: any) {
     console.error('Update Category Error:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+export interface UpdateAssetData {
+  symbol?: string;
+  name?: string;
+  amount?: number;
+  avg_cost?: number;
+  currency?: string;
+  category_id?: string;
+}
+
+export async function updateAssetAction(
+  userId: string,
+  assetId: string,
+  data: UpdateAssetData,
+) {
+  if (!userId || !assetId) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  try {
+    const assetRef = adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection(CollectionType.ASSETS)
+      .doc(assetId);
+
+    const updateData: any = {};
+    if (data.symbol !== undefined) updateData.symbol = data.symbol.toUpperCase();
+    if (data.name !== undefined) updateData.name = data.name;
+    
+    // Ensure we don't save "NaN" to the database
+    if (data.amount !== undefined && !isNaN(data.amount)) {
+      updateData.amount = data.amount.toString();
+    }
+    
+    if (data.avg_cost !== undefined && !isNaN(data.avg_cost)) {
+      updateData.avg_cost = data.avg_cost.toString();
+      // For manual assets, sync cost to price unless updated otherwise
+      updateData.current_price = data.avg_cost.toString(); 
+      
+      if (data.amount !== undefined && !isNaN(data.amount)) {
+        updateData.cost_basis_money = (data.amount * data.avg_cost).toString();
+      }
+    }
+    
+    if (data.currency !== undefined) updateData.currency = data.currency;
+    if (data.category_id !== undefined) updateData.category_id = data.category_id;
+
+    updateData.updated_at = Math.floor(Date.now() / 1000);
+
+    await assetRef.update(updateData);
+
+    return { success: true, message: 'Asset updated successfully.' };
+  } catch (error: any) {
+    console.error('Update Asset Error:', error);
     return { success: false, message: error.message };
   }
 }
