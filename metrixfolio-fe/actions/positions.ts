@@ -2,7 +2,7 @@
 
 import { adminDb } from '@/utils/firebase-admin';
 import { CollectionType } from '@/types/settings';
-import { Asset } from '@/types/positions';
+import { Asset, ClosedAsset } from '@/types/positions';
 import { getExchangeRatesAction } from '@/actions/currency';
 
 interface MarketData {
@@ -197,3 +197,99 @@ export async function deleteAssetAction(userId: string, assetId: string) {
     return { success: false, message: error.message };
   }
 }
+
+export async function closeAssetAction(
+  userId: string,
+  assetId: string,
+  closePrice: number,
+) {
+  if (!userId || !assetId) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  try {
+    const userRef = adminDb.collection(CollectionType.USERS).doc(userId);
+    const assetRef = userRef.collection(CollectionType.ASSETS).doc(assetId);
+    
+    const assetDoc = await assetRef.get();
+    if (!assetDoc.exists) {
+      return { success: false, message: 'Asset not found.' };
+    }
+
+    const data = assetDoc.data()!;
+    const amount = parseFloat(data.amount) || 0;
+    const avgCost = parseFloat(data.avg_cost) || 0;
+    const multiplier = parseFloat(data.multiplier) || 1;
+    
+    const realizedPnl = (closePrice - avgCost) * amount * multiplier;
+
+    const closedPositionRef = userRef.collection('closed_positions').doc(assetId);
+    
+    await closedPositionRef.set({
+      ...data,
+      close_price: closePrice.toString(),
+      close_date: Math.floor(Date.now() / 1000),
+      realized_pnl: realizedPnl.toString(),
+      updated_at: Math.floor(Date.now() / 1000),
+    });
+
+    await assetRef.delete();
+
+    return { success: true, message: 'Position closed and recorded.' };
+  } catch (error: any) {
+    console.error('Close Asset Error:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+export async function getClosedAssetsAction(userId: string): Promise<ClosedAsset[]> {
+  if (!userId) return [];
+
+  try {
+    const [closedSnapshot, rates] = await Promise.all([
+      adminDb
+        .collection(CollectionType.USERS)
+        .doc(userId)
+        .collection('closed_positions')
+        .orderBy('close_date', 'desc')
+        .get(),
+      getExchangeRatesAction(),
+    ]);
+
+    const rateMap = new Map<string, number>();
+    rates.forEach((r) => {
+      rateMap.set(`${r.from}_${r.to}`, r.rate);
+    });
+
+    const convertToUsd = (amount: number, fromCurrency: string) => {
+      if (fromCurrency === 'USD') return amount;
+      const key = `${fromCurrency}_USD`;
+      return rateMap.has(key) ? amount * rateMap.get(key)! : amount;
+    };
+
+    return closedSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const currency = data.currency || 'USD';
+      return {
+        id: doc.id,
+        symbol: data.symbol,
+        name: data.name || '',
+        amount: parseFloat(data.amount) || 0,
+        avg_cost: convertToUsd(parseFloat(data.avg_cost) || 0, currency),
+        current_price: convertToUsd(parseFloat(data.current_price) || 0, currency),
+        close_price: convertToUsd(parseFloat(data.close_price) || 0, currency),
+        realized_pnl: convertToUsd(parseFloat(data.realized_pnl) || 0, currency),
+        unrealized_pnl: 0, // Not applicable for closed positions but required by type
+        close_date: data.close_date,
+        currency: 'USD',
+        source: data.source || 'MANUAL',
+        category_id: data.category_id || 'uncategorized',
+        multiplier: parseFloat(data.multiplier) || 1,
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching closed assets:', error);
+    return [];
+  }
+}
+

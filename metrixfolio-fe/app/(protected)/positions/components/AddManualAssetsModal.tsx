@@ -26,16 +26,19 @@ export default function AddManualAssetModal({ categories, onSuccess }: Props) {
     category_id: '',
   });
 
+  const selectedCategory = categories.find((c) => c.id === form.category_id);
+  const isCash = selectedCategory?.name.toLowerCase() === 'cash';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setLoading(true);
 
     const res = await addManualPositionAction(user.uid, {
-      symbol: form.symbol,
-      name: form.name,
+      symbol: isCash ? form.currency : form.symbol,
+      name: isCash ? `Cash (${form.currency})` : form.name,
       amount: parseFloat(form.amount),
-      avg_cost: parseFloat(form.avg_cost),
+      avg_cost: isCash ? 1.0 : parseFloat(form.avg_cost),
       currency: form.currency,
       category_id: form.category_id || 'uncategorized',
     });
@@ -71,44 +74,66 @@ export default function AddManualAssetModal({ categories, onSuccess }: Props) {
           <h3 className="mb-4 text-lg font-bold">Add Manual Asset</h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Symbol</span>
-                </label>
-                <input
-                  required
-                  type="text"
-                  placeholder="e.g. XAU"
-                  className="input input-bordered uppercase"
-                  value={form.symbol}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      symbol: e.target.value.toLocaleUpperCase(),
-                    })
-                  }
-                />
-              </div>
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Name</span>
-                </label>
-                <input
-                  required
-                  type="text"
-                  placeholder="Gold Bar"
-                  className="input input-bordered"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-bold">Category</span>
+              </label>
+              <select
+                className="select select-bordered select-primary"
+                value={form.category_id}
+                onChange={(e) =>
+                  setForm({ ...form, category_id: e.target.value })
+                }
+              >
+                <option value="">Uncategorized</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            {!isCash && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Symbol</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. XAU"
+                    className="input input-bordered uppercase"
+                    value={form.symbol}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        symbol: e.target.value.toLocaleUpperCase(),
+                      })
+                    }
+                  />
+                </div>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Name</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Gold Bar"
+                    className="input input-bordered"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Quantity</span>
+                  <span className="label-text">Quantity / Amount</span>
                 </label>
                 <input
                   required
@@ -119,27 +144,29 @@ export default function AddManualAssetModal({ categories, onSuccess }: Props) {
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 />
               </div>
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Avg Cost (Unit)</span>
-                </label>
-                <input
-                  required
-                  type="number"
-                  step="any"
-                  className="input input-bordered"
-                  value={form.avg_cost}
-                  onChange={(e) =>
-                    setForm({ ...form, avg_cost: e.target.value })
-                  }
-                />
-              </div>
+              {!isCash && (
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Avg Cost (Unit)</span>
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    className="input input-bordered"
+                    value={form.avg_cost}
+                    onChange={(e) =>
+                      setForm({ ...form, avg_cost: e.target.value })
+                    }
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Currency</span>
+                  <span className="label-text font-semibold">Currency</span>
                 </label>
                 <select
                   className="select select-bordered"
@@ -151,25 +178,6 @@ export default function AddManualAssetModal({ categories, onSuccess }: Props) {
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
                   <option value="TRY">TRY</option>
-                </select>
-              </div>
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Category</span>
-                </label>
-                <select
-                  className="select select-bordered"
-                  value={form.category_id}
-                  onChange={(e) =>
-                    setForm({ ...form, category_id: e.target.value })
-                  }
-                >
-                  <option value="">Uncategorized</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
                 </select>
               </div>
             </div>

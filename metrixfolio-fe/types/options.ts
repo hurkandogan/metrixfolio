@@ -4,6 +4,8 @@ export interface OptionPosition {
   id: string;
   symbol: string;
   type: OptionType;
+  quantity: number;
+
   buy_date: string | null;
   sell_date: string | null;
   buy_price: number | null;
@@ -12,3 +14,4 @@ export interface OptionPosition {
   note: string;
   created_at: number;
 }
+

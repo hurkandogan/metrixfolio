@@ -19,3 +19,10 @@ export interface Asset {
   original_avg_cost?: number;
   original_current_price?: number;
 }
+
+export interface ClosedAsset extends Asset {
+  close_price: number;
+  close_date: number; // unix timestamp
+  realized_pnl: number;
+}
+

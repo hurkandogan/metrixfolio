@@ -17,7 +17,9 @@ import {
     FiTrendingUp, 
     FiTrendingDown,
     FiInfo,
-    FiCalendar
+    FiCalendar,
+    FiChevronUp,
+    FiChevronDown
 } from 'react-icons/fi';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
@@ -33,10 +35,13 @@ export default function OptionManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL');
+  const [sortConfig, setSortConfig] = useState<{ key: keyof OptionPosition, direction: 'asc' | 'desc' } | null>(null);
 
   const [formData, setFormData] = useState({
     symbol: '',
     type: 'BUY_CALL' as OptionType,
+    quantity: '1',
     buy_date: '',
     sell_date: '',
     buy_price: '',
@@ -63,26 +68,83 @@ export default function OptionManager() {
 
     options.forEach(opt => {
         const isLong = opt.type.startsWith('BUY');
+        const qty = opt.quantity || 1;
         const buyPrice = opt.buy_price || 0;
         const sellPrice = opt.sell_price || 0;
         
-        // PnL = Profit = (Cash In - Cash Out)
-        // For Long: Sell (In) - Buy (Out)
-        // For Short: Sell (In) - Buy (Out)
-        // It's technically the same if we consider signs, but let's be explicit.
-        const pnl = (sellPrice && buyPrice) ? (sellPrice - buyPrice) : 0;
+        // PnL = (Closing Price - Opening Price) * Quantity
+        // For Long: (Sell Price - Buy Price) * Quantity
+        // For Short: (Sell Price - Buy Price) * Quantity (where sell is opening)
+        // This formula works for both if we consider S-B.
+        const pnl = (sellPrice && buyPrice) ? (sellPrice - buyPrice) * qty : 0;
         totalPnL += pnl;
 
-        // Open position value
+        // Open position value (Cost Basis for Long, Initial Credit for Short)
         if (isLong && !opt.sell_price) {
-            totalOpenValue += buyPrice;
+            totalOpenValue += buyPrice * qty;
         } else if (!isLong && !opt.buy_price) {
-            totalOpenValue += sellPrice;
+            totalOpenValue += sellPrice * qty;
         }
     });
 
     return { totalOpenValue, totalPnL };
   }, [options]);
+
+  const filteredOptions = useMemo(() => {
+    let result = [...options];
+    if (filter !== 'ALL') {
+      result = result.filter(opt => {
+          const isClosed = opt.buy_date && opt.sell_date;
+          return filter === 'CLOSED' ? isClosed : !isClosed;
+      });
+    }
+
+    if (sortConfig) {
+        result.sort((a, b) => {
+            const aClosed = !!(a.buy_date && a.sell_date);
+            const bClosed = !!(b.buy_date && b.sell_date);
+            if (aClosed !== bClosed) return aClosed ? 1 : -1; // Open on top
+
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            
+            if (aValue === null || aValue === undefined) return 1;
+            if (bValue === null || bValue === undefined) return -1;
+            
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    } else {
+        // Default sort: Open first, then by opening date descending
+        result.sort((a, b) => {
+            const aClosed = !!(a.buy_date && a.sell_date);
+            const bClosed = !!(b.buy_date && b.sell_date);
+            
+            if (aClosed !== bClosed) return aClosed ? 1 : -1; // Open on top
+            
+            const aEntry = a.type.startsWith('BUY') ? (a.buy_date || '') : (a.sell_date || '');
+            const bEntry = b.type.startsWith('BUY') ? (b.buy_date || '') : (b.sell_date || '');
+            
+            return bEntry.localeCompare(aEntry); // Most recent first
+        });
+    }
+
+    return result;
+  }, [options, filter, sortConfig]);
+
+  const handleSort = (key: keyof OptionPosition) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+        direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortArrow = (key: keyof OptionPosition) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <FiChevronUp className="inline ml-1" /> : <FiChevronDown className="inline ml-1" />;
+  };
 
   const handleOpenModal = (opt?: OptionPosition) => {
     if (opt) {
@@ -90,6 +152,7 @@ export default function OptionManager() {
       setFormData({
         symbol: opt.symbol,
         type: opt.type,
+        quantity: opt.quantity?.toString() || '1',
         buy_date: opt.buy_date || '',
         sell_date: opt.sell_date || '',
         buy_price: opt.buy_price?.toString() || '',
@@ -102,7 +165,8 @@ export default function OptionManager() {
       setFormData({ 
         symbol: '', 
         type: 'BUY_CALL', 
-        buy_date: new Date().toISOString().split('T')[0], 
+        quantity: '1',
+        buy_date: '', 
         sell_date: '', 
         buy_price: '', 
         sell_price: '', 
@@ -126,6 +190,7 @@ export default function OptionManager() {
     const payload: Omit<OptionPosition, 'id' | 'created_at'> = {
         symbol: formData.symbol.toUpperCase(),
         type: formData.type,
+        quantity: parseFloat(formData.quantity) || 1,
         buy_date: formData.buy_date || null,
         sell_date: formData.sell_date || null,
         buy_price: formData.buy_price ? parseFloat(formData.buy_price) : null,
@@ -157,11 +222,18 @@ export default function OptionManager() {
   };
 
   const calculateChange = (opt: OptionPosition) => {
-    if (!opt.buy_price || !opt.sell_price) return { abs: 0, percent: 0 };
-    const abs = opt.sell_price - opt.buy_price;
+    const isClosed = opt.buy_date && opt.sell_date;
+    if (!isClosed) return { abs: 0, percent: 0 };
+    
+    const qty = opt.quantity || 1;
+    const bPrice = opt.buy_price || 0;
+    const sPrice = opt.sell_price || 0;
+    
+    const abs = (sPrice - bPrice) * qty;
     const isLong = opt.type.startsWith('BUY');
-    const base = isLong ? opt.buy_price : opt.sell_price;
-    const percent = (abs / base) * 100;
+    const base = isLong ? bPrice : sPrice;
+    const percent = base !== 0 ? (abs / (base * qty)) * 100 : 0;
+    
     return { abs, percent };
   };
 
@@ -179,6 +251,14 @@ export default function OptionManager() {
         </button>
       </div>
 
+      <div className="flex justify-center">
+        <div className="join bg-base-100 border border-base-200">
+          <button className={`join-item btn btn-sm px-6 ${filter === 'ALL' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('ALL')}>All</button>
+          <button className={`join-item btn btn-sm px-6 ${filter === 'OPEN' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('OPEN')}>Open</button>
+          <button className={`join-item btn btn-sm px-6 ${filter === 'CLOSED' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter('CLOSED')}>Closed</button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="stats bg-base-100 border-base-200 border shadow">
           <div className="stat">
@@ -186,7 +266,7 @@ export default function OptionManager() {
               <FiDollarSign size={32} />
             </div>
             <div className="stat-title">Open Position Value</div>
-            <div className="stat-value text-3xl">{usdFormatter.format(stats.totalOpenValue)}</div>
+            <div className="stat-value text-3xl">{usdFormatter.format(stats.totalOpenValue * 100)}</div>
           </div>
         </div>
         <div className="stats bg-base-100 border-base-200 border shadow">
@@ -196,7 +276,7 @@ export default function OptionManager() {
             </div>
             <div className="stat-title">Total PnL</div>
             <div className="stat-value text-3xl" style={{ color: stats.totalPnL >= 0 ? '#22c55e' : '#ef4444' }}>
-                {(stats.totalPnL >= 0 ? '+' : '') + usdFormatter.format(stats.totalPnL)}
+                {(stats.totalPnL >= 0 ? '+' : '') + usdFormatter.format(stats.totalPnL * 100)}
             </div>
           </div>
         </div>
@@ -207,26 +287,36 @@ export default function OptionManager() {
           <table className="table">
             <thead>
               <tr className="bg-base-200/50">
-                <th>Dates</th>
-                <th>Type & Symbol</th>
-                <th>Target & Note</th>
-                <th className="text-right">Prices</th>
-                <th className="text-right">PnL / Change</th>
+                <th className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('buy_date')}>Dates {renderSortArrow('buy_date') || renderSortArrow('sell_date')}</th>
+                <th className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('symbol')}>Type & Symbol {renderSortArrow('symbol')}</th>
+                <th className="text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('quantity')}>Qty {renderSortArrow('quantity')}</th>
+                <th className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('target')}>Target & Note {renderSortArrow('target')}</th>
+                <th className="text-right cursor-pointer select-none whitespace-nowrap text-xs">Prices (B/S)</th>
+                <th className="text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('created_at')}>PnL / Change {renderSortArrow('created_at')}</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {options.map((opt) => {
+              {filteredOptions.map((opt) => {
                 const { abs, percent } = calculateChange(opt);
-                const isClosed = opt.buy_price && opt.sell_price;
+                const isClosed = opt.buy_date && opt.sell_date;
                 const rowBg = isClosed ? (abs >= 0 ? 'bg-success/5' : 'bg-error/5') : '';
                 
                 return (
                   <tr key={opt.id} className={`${rowBg} hover:bg-base-200/40 transition-colors`}>
-                    <td className="text-xs">
-                        <div className="flex flex-col gap-1">
-                            <span className="flex items-center gap-1"><span className="badge badge-xs badge-info">B</span> {opt.buy_date || '-'}</span>
-                            <span className="flex items-center gap-1"><span className="badge badge-xs badge-warning">S</span> {opt.sell_date || '-'}</span>
+                    <td className="text-[10px] py-1">
+                        <div className="flex flex-col gap-0.5 min-w-[85px]">
+                            {opt.type.startsWith('BUY') ? (
+                                <>
+                                    <span className="flex items-center gap-1"><span className="badge badge-xs h-3 min-h-0 badge-info text-[8px] px-0.5">B</span> {opt.buy_date || '-'}</span>
+                                    <span className="flex items-center gap-1 opacity-70"><span className="badge badge-xs h-3 min-h-0 badge-warning text-[8px] px-0.5">S</span> {opt.sell_date || '-'}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="flex items-center gap-1"><span className="badge badge-xs h-3 min-h-0 badge-warning text-[8px] px-0.5">S</span> {opt.sell_date || '-'}</span>
+                                    <span className="flex items-center gap-1 opacity-70"><span className="badge badge-xs h-3 min-h-0 badge-info text-[8px] px-0.5">B</span> {opt.buy_date || '-'}</span>
+                                </>
+                            )}
                         </div>
                     </td>
                     <td>
@@ -235,6 +325,7 @@ export default function OptionManager() {
                         <span className="font-bold">{opt.symbol}</span>
                       </div>
                     </td>
+                    <td className="text-right font-mono text-sm">{opt.quantity || 1}</td>
                     <td className="max-w-xs whitespace-normal">
                         <div className="flex flex-col">
                            <span className="text-sm font-semibold">{opt.target}</span>
@@ -251,7 +342,7 @@ export default function OptionManager() {
                       {isClosed ? (
                           <div className="flex flex-col">
                             <span className={`font-bold ${abs >= 0 ? 'text-success' : 'text-error'}`}>
-                                {abs >= 0 ? '+' : ''}{usdFormatter.format(abs)}
+                                {abs >= 0 ? '+' : ''}{usdFormatter.format(abs * 100)}
                             </span>
                             <span className={`text-xs ${abs >= 0 ? 'text-success' : 'text-error'}`}>
                                 {abs >= 0 ? '+' : ''}{percent.toFixed(2)}%
@@ -304,6 +395,11 @@ export default function OptionManager() {
                         <option value="SELL_PUT">Sell Put (Short)</option>
                     </select>
                 </div>
+            </div>
+
+            <div className="form-control">
+                <label className="label"><span className="label-text font-semibold text-primary">Quantity</span></label>
+                <input type="number" step="1" min="1" className="input input-bordered focus:input-primary" required value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-base-200/50 rounded-xl">
