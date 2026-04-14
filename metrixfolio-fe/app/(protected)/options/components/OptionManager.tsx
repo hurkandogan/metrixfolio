@@ -71,19 +71,18 @@ export default function OptionManager() {
         const qty = opt.quantity || 1;
         const buyPrice = opt.buy_price || 0;
         const sellPrice = opt.sell_price || 0;
+        const isClosed = !!opt.buy_date && !!opt.sell_date;
         
-        // PnL = (Closing Price - Opening Price) * Quantity
-        // For Long: (Sell Price - Buy Price) * Quantity
-        // For Short: (Sell Price - Buy Price) * Quantity (where sell is opening)
-        // This formula works for both if we consider S-B.
-        const pnl = (sellPrice && buyPrice) ? (sellPrice - buyPrice) * qty : 0;
-        totalPnL += pnl;
-
-        // Open position value (Cost Basis for Long, Initial Credit for Short)
-        if (isLong && !opt.sell_price) {
-            totalOpenValue += buyPrice * qty;
-        } else if (!isLong && !opt.buy_price) {
-            totalOpenValue += sellPrice * qty;
+        if (isClosed) {
+            // Realized PnL
+            totalPnL += (sellPrice - buyPrice) * qty;
+        } else {
+            // Open position value (Cost Basis for Long, Initial Credit for Short)
+            if (isLong && !opt.sell_date) {
+                totalOpenValue += buyPrice * qty;
+            } else if (!isLong && !opt.buy_date) {
+                totalOpenValue += sellPrice * qty;
+            }
         }
     });
 

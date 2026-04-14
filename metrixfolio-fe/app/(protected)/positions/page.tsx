@@ -11,12 +11,16 @@ import {
   FiChevronDown,
   FiSearch,
   FiCalendar,
+  FiTrash2,
 } from 'react-icons/fi';
 import {
   getAssetsAction,
   updateAssetAction,
+  deleteAssetAction,
   closeAssetAction,
   getClosedAssetsAction,
+  updateClosedAssetAction,
+  deleteClosedAssetAction,
 } from '@/actions/positions';
 import { Asset, ClosedAsset } from '@/types/positions';
 import { Category } from '@/types/settings';
@@ -43,6 +47,7 @@ export default function PositionsPage() {
     avg_cost: '',
     currency: 'USD',
     category_id: '',
+    close_price: '',
   });
   const [closeFormData, setCloseFormData] = useState({
     price: '',
@@ -96,6 +101,7 @@ export default function PositionsPage() {
       avg_cost: asset.original_avg_cost?.toString() || asset.avg_cost?.toString() || '',
       currency: asset.original_currency || asset.currency || 'USD',
       category_id: asset.category_id !== 'uncategorized' ? asset.category_id : '',
+      close_price: (asset as ClosedAsset).close_price?.toString() || '',
     });
     modalRef.current?.showModal();
   };
@@ -104,18 +110,27 @@ export default function PositionsPage() {
     if (e) e.preventDefault();
     if (!user || !selectedAsset) return;
 
-    const res = await updateAssetAction(
-      user.uid,
-      selectedAsset.id,
-      {
-        symbol: editForm.symbol,
-        name: editForm.name,
-        amount: parseFloat(editForm.amount),
-        avg_cost: parseFloat(editForm.avg_cost),
-        currency: editForm.currency,
-        category_id: editForm.category_id || 'uncategorized',
-      }
-    );
+    const isClosed = (selectedAsset as ClosedAsset).close_date !== undefined;
+
+    const res = isClosed 
+      ? await updateClosedAssetAction(user.uid, selectedAsset.id, {
+          amount: parseFloat(editForm.amount),
+          avg_cost: parseFloat(editForm.avg_cost),
+          close_price: parseFloat(editForm.close_price),
+          currency: editForm.currency,
+        })
+      : await updateAssetAction(
+          user.uid,
+          selectedAsset.id,
+          {
+            symbol: editForm.symbol,
+            name: editForm.name,
+            amount: parseFloat(editForm.amount),
+            avg_cost: parseFloat(editForm.avg_cost),
+            currency: editForm.currency,
+            category_id: editForm.category_id || 'uncategorized',
+          }
+        );
 
     if (res.success) {
       modalRef.current?.close();
@@ -138,6 +153,28 @@ export default function PositionsPage() {
     const res = await closeAssetAction(user.uid, selectedAsset.id, parseFloat(closeFormData.price));
     if (res.success) {
       closePortalRef.current?.close();
+      await loadData();
+    } else {
+      alert('Error: ' + res.message);
+    }
+  };
+
+  const handleDeleteAsset = async (assetId: string) => {
+    if (!user || !confirm('Are you sure you want to delete this position?')) return;
+
+    const res = await deleteAssetAction(user.uid, assetId);
+    if (res.success) {
+      await loadData();
+    } else {
+      alert('Error: ' + res.message);
+    }
+  };
+
+  const handleDeleteClosedAsset = async (assetId: string) => {
+    if (!user || !confirm('Are you sure you want to delete this historical trade?')) return;
+
+    const res = await deleteClosedAssetAction(user.uid, assetId);
+    if (res.success) {
       await loadData();
     } else {
       alert('Error: ' + res.message);
@@ -222,23 +259,27 @@ export default function PositionsPage() {
       <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
         <div className="modal-box">
           <h3 className="flex items-center gap-2 text-lg font-bold">
-            <FiEdit2 /> Edit Asset
+            <FiEdit2 /> Edit {selectedAsset?.close_date ? 'Historical Trade' : 'Asset'}
           </h3>
           {selectedAsset && (
             <form onSubmit={handleSaveEdit} className="space-y-4 py-4">
               <div className="alert alert-info py-2 text-sm shadow-sm">
                 <span>Editing <strong>{selectedAsset.symbol}</strong> ({selectedAsset.name})</span>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-control">
-                  <label className="label"><span className="label-text">Symbol</span></label>
-                  <input required type="text" className="input input-bordered uppercase" value={editForm.symbol} onChange={(e) => setEditForm({ ...editForm, symbol: e.target.value.toUpperCase() })} />
+              
+              {!selectedAsset.close_date && (
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="form-control">
+                        <label className="label"><span className="label-text">Symbol</span></label>
+                        <input required type="text" className="input input-bordered uppercase" value={editForm.symbol} onChange={(e) => setEditForm({ ...editForm, symbol: e.target.value.toUpperCase() })} />
+                    </div>
+                    <div className="form-control">
+                        <label className="label"><span className="label-text">Name</span></label>
+                        <input required type="text" className="input input-bordered" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                    </div>
                 </div>
-                <div className="form-control">
-                  <label className="label"><span className="label-text">Name</span></label>
-                  <input required type="text" className="input input-bordered" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                </div>
-              </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-control">
                   <label className="label"><span className="label-text">Quantity</span></label>
@@ -249,7 +290,14 @@ export default function PositionsPage() {
                   <input required type="number" step="any" className="input input-bordered" value={editForm.avg_cost} onChange={(e) => setEditForm({ ...editForm, avg_cost: e.target.value })} />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
+                {selectedAsset.close_date && (
+                    <div className="form-control">
+                        <label className="label"><span className="label-text font-bold text-primary">Exit Price (Unit)</span></label>
+                        <input required type="number" step="any" className="input input-bordered border-primary focus:input-primary" value={editForm.close_price} onChange={(e) => setEditForm({ ...editForm, close_price: e.target.value })} />
+                    </div>
+                )}
                 <div className="form-control">
                   <label className="label"><span className="label-text">Currency</span></label>
                   <select className="select select-bordered" value={editForm.currency} onChange={(e) => setEditForm({ ...editForm, currency: e.target.value })}>
@@ -258,6 +306,9 @@ export default function PositionsPage() {
                     <option value="TRY">TRY</option>
                   </select>
                 </div>
+              </div>
+
+              {!selectedAsset.close_date && (
                 <div className="form-control">
                   <label className="label"><span className="label-text">Category</span></label>
                   <select className="select select-bordered w-full" value={editForm.category_id} onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })}>
@@ -267,10 +318,11 @@ export default function PositionsPage() {
                     ))}
                   </select>
                 </div>
-              </div>
+              )}
+
               <div className="modal-action">
                 <button type="button" className="btn btn-ghost" onClick={() => modalRef.current?.close()}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
           )}
@@ -368,7 +420,7 @@ export default function PositionsPage() {
               {currentTab === 'OPEN' ? (
                 <><FiCheckCircle className="text-success" /> Active Portfolio</>
               ) : (
-                <><FiCalendar className="text-primary" /> Realized Trades</>
+                <><FiCalendar className="text-primary" /> Realized Performance</>
               )}
             </h2>
             <div className="relative">
@@ -408,7 +460,7 @@ export default function PositionsPage() {
                       </td>
                       <td className="text-right">
                         <div className="flex justify-end gap-2">
-                          <button className="btn btn-square btn-ghost btn-xs" onClick={() => openEditModal(asset)} title="Edit"><FiEdit2 /></button>
+                          <button className="btn btn-square btn-ghost btn-xs text-info" onClick={() => openEditModal(asset)} title="Edit"><FiEdit2 /></button>
                           <button className="btn btn-outline btn-primary btn-xs" onClick={() => openCloseModal(asset)}>Close</button>
                         </div>
                       </td>
@@ -440,6 +492,7 @@ export default function PositionsPage() {
                     <th className="text-right">Avg Cost</th>
                     <th className="text-right">Exit Price</th>
                     <th className="text-right">Realized P/L</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -454,10 +507,16 @@ export default function PositionsPage() {
                       <td className={`text-right font-mono font-bold ${asset.realized_pnl >= 0 ? 'text-success' : 'text-error'}`}>
                         {asset.realized_pnl > 0 ? '+' : ''}{formatMoney(asset.realized_pnl.toString(), 'USD')}
                       </td>
+                      <td className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <button className="btn btn-square btn-ghost btn-xs text-info" onClick={() => openEditModal(asset)} title="Edit Trade"><FiEdit2 /></button>
+                            <button className="btn btn-square btn-ghost btn-xs text-error" onClick={() => handleDeleteClosedAsset(asset.id)} title="Delete Trade"><FiTrash2 /></button>
+                          </div>
+                      </td>
                     </tr>
                   ))}
                   {filteredClosedAssets.length === 0 && (
-                    <tr><td colSpan={7} className="py-8 text-center opacity-50">No closed positions yet.</td></tr>
+                    <tr><td colSpan={8} className="py-8 text-center opacity-50">No closed positions yet.</td></tr>
                   )}
                 </tbody>
               </table>

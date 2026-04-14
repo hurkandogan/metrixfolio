@@ -293,3 +293,74 @@ export async function getClosedAssetsAction(userId: string): Promise<ClosedAsset
   }
 }
 
+export async function deleteClosedAssetAction(userId: string, assetId: string) {
+  if (!userId || !assetId) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  try {
+    await adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection('closed_positions')
+      .doc(assetId)
+      .delete();
+
+    return { success: true, message: 'Historical trade deleted successfully.' };
+  } catch (error: any) {
+    console.error('Delete Closed Asset Error:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+export async function updateClosedAssetAction(
+  userId: string,
+  assetId: string,
+  data: {
+    amount?: number;
+    avg_cost?: number;
+    close_price?: number;
+    currency?: string;
+  },
+) {
+  if (!userId || !assetId) {
+    return { success: false, message: 'Missing parameters.' };
+  }
+
+  try {
+    const assetRef = adminDb
+      .collection(CollectionType.USERS)
+      .doc(userId)
+      .collection('closed_positions')
+      .doc(assetId);
+
+    const doc = await assetRef.get();
+    if (!doc.exists) return { success: false, message: 'Trade not found.' };
+
+    const existingData = doc.data()!;
+    const updateData: any = {};
+
+    if (data.amount !== undefined) updateData.amount = data.amount.toString();
+    if (data.avg_cost !== undefined) updateData.avg_cost = data.avg_cost.toString();
+    if (data.close_price !== undefined) updateData.close_price = data.close_price.toString();
+    if (data.currency !== undefined) updateData.currency = data.currency;
+
+    // Recalculate realized PnL
+    const finalAmount = data.amount ?? parseFloat(existingData.amount);
+    const finalAvgCost = data.avg_cost ?? parseFloat(existingData.avg_cost);
+    const finalClosePrice = data.close_price ?? parseFloat(existingData.close_price);
+    const multiplier = parseFloat(existingData.multiplier) || 1;
+
+    const realizedPnl = (finalClosePrice - finalAvgCost) * finalAmount * multiplier;
+    updateData.realized_pnl = realizedPnl.toString();
+    updateData.updated_at = Math.floor(Date.now() / 1000);
+
+    await assetRef.update(updateData);
+
+    return { success: true, message: 'Historical trade updated successfully.' };
+  } catch (error: any) {
+    console.error('Update Closed Asset Error:', error);
+    return { success: false, message: error.message };
+  }
+}
+
