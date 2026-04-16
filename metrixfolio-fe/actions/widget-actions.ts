@@ -12,6 +12,7 @@ const CONFIG_PATH = (userId: string) =>
 
 export interface GrowthWidgetData {
   growthRate: number;
+  baseAmount?: number;
   milestones: { step: number; date: string; value: number }[];
 }
 
@@ -28,8 +29,7 @@ export async function saveGrowthSettingsAction(
         widgets: {
           growth_goals: {
             ...data,
-            // Milestones'u koru veya sıfırla? Şimdilik koruyalım, merge: true yetmez, manuel koruma lazım.
-            // Basitlik için UI'dan mevcut milestones'u da gönderebiliriz veya merge option kullanırız.
+            baseAmount: data.baseAmount || 1000,
           },
         },
       },
@@ -52,14 +52,32 @@ export async function checkMilestonesAction(
   const ref = CONFIG_PATH(userId);
   const doc = await ref.get();
 
-  if (!doc.exists) return;
+  if (!doc.exists) {
+    // If no config exists, create a default one to allow milestone tracking
+    const defaultConfig = {
+      widgets: {
+        growth_goals: {
+          growthRate: 10,
+          baseAmount: 1000,
+          milestones: [],
+        },
+      },
+    };
+    await ref.set(defaultConfig, { merge: true });
+    return;
+  }
 
   const widgets = doc.data()?.widgets || {};
-  const growth = widgets.growth_goals as GrowthWidgetData;
+  let growth = widgets.growth_goals as GrowthWidgetData;
 
-  if (!growth) return;
+  if (!growth) {
+    // If goals missing from widgets, initialize them
+    growth = { growthRate: 10, baseAmount: 1000, milestones: [] };
+    await ref.update({ 'widgets.growth_goals': growth });
+  }
 
-  let loopVal = 1000;
+  let baseVal = growth.baseAmount || 1000;
+  let loopVal = baseVal;
   let step = 1;
   const rate = (growth.growthRate || 10) / 100;
   const newMilestones = [...(growth.milestones || [])];
