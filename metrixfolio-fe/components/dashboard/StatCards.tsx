@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FiArrowUp, FiArrowDown, FiMinus } from 'react-icons/fi';
 import { useDebts } from '@/hooks/useDebts';
+import { db } from '@/utils/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthProvider';
 
 interface StatCardsProps {
   totalValue: number;
@@ -24,16 +27,46 @@ export const StatCards: React.FC<StatCardsProps> = ({
   prevInvested,
 }) => {
   const [goalAmount, setGoalAmount] = useState<number>(10000);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const { user } = useAuth();
   const { totalDebtUsd } = useDebts();
   const netAmount = totalProfit - totalDebtUsd;
   const netPercentage = totalValue > 0 ? (netAmount / totalValue) * 100 : 0;
 
   useEffect(() => {
-    const nextGoal =
-      GOAL_MILESTONES.find((g) => g > totalValue) ||
-      GOAL_MILESTONES[GOAL_MILESTONES.length - 1];
-    setGoalAmount(nextGoal);
-  }, [totalValue]);
+    if (!user || isLoaded) return;
+
+    const fetchGoal = async () => {
+      try {
+        const docRef = doc(db, 'users', user.uid, 'configuration', 'main');
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists() && docSnap.data().goal_amount) {
+          setGoalAmount(docSnap.data().goal_amount);
+        } else {
+          const nextGoal =
+            GOAL_MILESTONES.find((g) => g > totalValue) ||
+            GOAL_MILESTONES[GOAL_MILESTONES.length - 1];
+          setGoalAmount(nextGoal);
+        }
+        setIsLoaded(true);
+      } catch (error) {
+        console.error('Error fetching goal amount:', error);
+      }
+    };
+
+    fetchGoal();
+  }, [user, totalValue, isLoaded]);
+
+  const handleBlur = async () => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'users', user.uid, 'configuration', 'main');
+      await setDoc(docRef, { goal_amount: goalAmount }, { merge: true });
+    } catch (error) {
+      console.error('Error saving goal amount:', error);
+    }
+  };
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -131,6 +164,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
               className="input input-ghost input-xs focus:text-primary h-6 w-24 [appearance:textfield] pr-3 text-right font-bold focus:bg-transparent [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={goalAmount}
               onChange={(e) => setGoalAmount(Number(e.target.value))}
+              onBlur={handleBlur}
             />
           </div>
         </div>

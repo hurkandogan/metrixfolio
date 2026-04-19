@@ -164,9 +164,9 @@ export const CategoryCards: FC<CategoryCardsProps> = ({
         {sortedCategories.map((cat) => {
           const isUncategorized = cat.id === 'uncategorized';
           const diff = cat.actual_percentage - cat.target_percentage;
-          const isBalanced = Math.abs(diff) <= 1.0;
-          const isOverweight = diff > 1.0;
-          const isUnderweight = diff < -1.0;
+          const isBalanced = Math.abs(diff) <= 5.0;
+          const isOverweight = diff > 5.0;
+          const isUnderweight = diff < -5.0;
 
           let statusColor = 'text-success';
           let badgeClass = 'badge-success/10 text-success border-success/20';
@@ -282,9 +282,11 @@ export const CategoryCards: FC<CategoryCardsProps> = ({
                   </div>
                   <progress
                     className={`progress w-full ${progressColor}`}
-                    value={cat.actual_percentage}
+                    value={Math.abs(cat.actual_percentage)}
                     max={
-                      cat.target_percentage > 0 ? cat.target_percentage : 100
+                      Math.abs(cat.target_percentage) > 0
+                        ? Math.abs(cat.target_percentage)
+                        : 100
                     }
                   ></progress>
                 </div>
