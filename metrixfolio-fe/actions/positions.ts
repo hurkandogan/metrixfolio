@@ -4,6 +4,7 @@ import { adminDb } from '@/utils/firebase-admin';
 import { CollectionType } from '@/types/settings';
 import { Asset, ClosedAsset } from '@/types/positions';
 import { getExchangeRatesAction } from '@/actions/currency';
+import { CurrencyConverter } from '@/utils/currency-math';
 
 interface MarketData {
   symbol: string;
@@ -25,20 +26,9 @@ export async function getAssetsAction(userId: string): Promise<Asset[]> {
       getExchangeRatesAction(),
     ]);
 
-    const rateMap = new Map<string, number>();
-    rates.forEach((r) => {
-      rateMap.set(`${r.from}_${r.to}`, r.rate);
-    });
-
-    const convertToUsd = (amount: number, fromCurrency: string) => {
-      if (fromCurrency === 'USD') return amount;
-      const directKey = `${fromCurrency}_USD`;
-      if (rateMap.has(directKey)) return amount * rateMap.get(directKey)!;
-      const inverseKey = `USD_${fromCurrency}`;
-      if (rateMap.has(inverseKey) && rateMap.get(inverseKey)! !== 0)
-        return amount / rateMap.get(inverseKey)!;
-      return amount;
-    };
+    const converter = new CurrencyConverter(rates);
+    const convertToUsd = (amount: number, fromCurrency: string) =>
+      converter.convert(amount, fromCurrency, 'USD');
 
     const assets: Asset[] = assetsSnapshot.docs.map((doc) => {
       const data = doc.data();
@@ -195,6 +185,30 @@ export async function deleteAssetAction(userId: string, assetId: string) {
   } catch (error: any) {
     console.error('Delete Asset Error:', error);
     return { success: false, message: error.message };
+  }
+}
+
+export async function purgeZeroQuantityAssetsAction(
+  userId: string,
+  assetIds: string[],
+) {
+  if (!userId || assetIds.length === 0) return { success: true, deleted: 0 };
+
+  try {
+    const batch = adminDb.batch();
+    assetIds.forEach((id) => {
+      const ref = adminDb
+        .collection(CollectionType.USERS)
+        .doc(userId)
+        .collection(CollectionType.ASSETS)
+        .doc(id);
+      batch.delete(ref);
+    });
+    await batch.commit();
+    return { success: true, deleted: assetIds.length };
+  } catch (error: any) {
+    console.error('Purge Zero Qty Error:', error);
+    return { success: false, deleted: 0 };
   }
 }
 

@@ -19,13 +19,71 @@ import {
     FiInfo,
     FiCalendar,
     FiChevronUp,
-    FiChevronDown
+    FiChevronDown,
+    FiX,
 } from 'react-icons/fi';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
 });
+
+const OPTION_CONTRACT_SIZE = 100;
+
+const isOptionClosed = (opt: OptionPosition) => !!opt.buy_date && !!opt.sell_date;
+
+// "YYYY-MM-DD" (Firestore) → "DD.MM.YYYY" (display)
+const toDisplayDate = (iso: string) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}.${m}.${y}`;
+};
+
+// "DD.MM.YYYY" (display) → "YYYY-MM-DD" (Firestore)
+const toIsoDate = (display: string): string | null => {
+  if (!display) return null;
+  const parts = display.split('.');
+  if (parts.length !== 3 || parts[2].length !== 4) return null;
+  return `${parts[2]}-${parts[1]}-${parts[0]}`;
+};
+
+// Auto-insert dots while typing: DD.MM.YYYY — clamps day (01-31) and month (01-12)
+const formatDateInput = (raw: string) => {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+
+  let d = digits.slice(0, 2);
+  let m = digits.slice(2, 4);
+  const y = digits.slice(4, 8);
+
+  // Clamp day to 01-31
+  if (d.length === 2) {
+    const dNum = parseInt(d, 10);
+    if (dNum < 1) d = '01';
+    else if (dNum > 31) d = '31';
+  }
+
+  // Clamp month to 01-12
+  if (m.length === 2) {
+    const mNum = parseInt(m, 10);
+    if (mNum < 1) m = '01';
+    else if (mNum > 12) m = '12';
+  } else if (m.length === 1 && parseInt(m, 10) > 1) {
+    // Single digit > 1 can never be a valid month tens digit, pad immediately
+    m = '0' + m;
+  }
+
+  if (digits.length <= 2) return d;
+  if (digits.length <= 4) return `${d}.${m}`;
+  return `${d}.${m}.${y}`;
+};
+
+const calcPnl = (opt: OptionPosition) => {
+  const qty = opt.quantity || 1;
+  const buyPrice = opt.buy_price ?? 0;
+  const sellPrice = opt.sell_price ?? 0;
+  return (sellPrice - buyPrice) * qty * OPTION_CONTRACT_SIZE;
+};
 
 export default function OptionManager() {
   const { user } = useAuth();
@@ -66,24 +124,17 @@ export default function OptionManager() {
     let totalOpenValue = 0;
     let totalPnL = 0;
 
-    options.forEach(opt => {
-        const isLong = opt.type.startsWith('BUY');
-        const qty = opt.quantity || 1;
-        const buyPrice = opt.buy_price || 0;
-        const sellPrice = opt.sell_price || 0;
-        const isClosed = !!opt.buy_date && !!opt.sell_date;
-        
-        if (isClosed) {
-            // Realized PnL
-            totalPnL += (sellPrice - buyPrice) * qty;
-        } else {
-            // Open position value (Cost Basis for Long, Initial Credit for Short)
-            if (isLong && !opt.sell_date) {
-                totalOpenValue += buyPrice * qty;
-            } else if (!isLong && !opt.buy_date) {
-                totalOpenValue += sellPrice * qty;
-            }
-        }
+    options.forEach((opt) => {
+      const qty = opt.quantity || 1;
+      const buyPrice = opt.buy_price ?? 0;
+      const sellPrice = opt.sell_price ?? 0;
+      const entryPrice = opt.type.startsWith('BUY') ? buyPrice : sellPrice;
+
+      if (isOptionClosed(opt)) {
+        totalPnL += calcPnl(opt);
+      } else {
+        totalOpenValue += entryPrice * qty * OPTION_CONTRACT_SIZE;
+      }
     });
 
     return { totalOpenValue, totalPnL };
@@ -92,16 +143,15 @@ export default function OptionManager() {
   const filteredOptions = useMemo(() => {
     let result = [...options];
     if (filter !== 'ALL') {
-      result = result.filter(opt => {
-          const isClosed = opt.buy_date && opt.sell_date;
-          return filter === 'CLOSED' ? isClosed : !isClosed;
-      });
+      result = result.filter((opt) =>
+        filter === 'CLOSED' ? isOptionClosed(opt) : !isOptionClosed(opt),
+      );
     }
 
     if (sortConfig) {
         result.sort((a, b) => {
-            const aClosed = !!(a.buy_date && a.sell_date);
-            const bClosed = !!(b.buy_date && b.sell_date);
+            const aClosed = isOptionClosed(a);
+            const bClosed = isOptionClosed(b);
             if (aClosed !== bClosed) return aClosed ? 1 : -1; // Open on top
 
             const aValue = a[sortConfig.key];
@@ -115,10 +165,10 @@ export default function OptionManager() {
             return 0;
         });
     } else {
-        // Default sort: Open first, then by opening date descending
+        // Default sort: Open first, then by entry date descending
         result.sort((a, b) => {
-            const aClosed = !!(a.buy_date && a.sell_date);
-            const bClosed = !!(b.buy_date && b.sell_date);
+            const aClosed = isOptionClosed(a);
+            const bClosed = isOptionClosed(b);
             
             if (aClosed !== bClosed) return aClosed ? 1 : -1; // Open on top
             
@@ -152,8 +202,8 @@ export default function OptionManager() {
         symbol: opt.symbol,
         type: opt.type,
         quantity: opt.quantity?.toString() || '1',
-        buy_date: opt.buy_date || '',
-        sell_date: opt.sell_date || '',
+        buy_date: opt.buy_date ? toDisplayDate(opt.buy_date) : '',
+        sell_date: opt.sell_date ? toDisplayDate(opt.sell_date) : '',
         buy_price: opt.buy_price?.toString() || '',
         sell_price: opt.sell_price?.toString() || '',
         target: opt.target,
@@ -186,12 +236,18 @@ export default function OptionManager() {
     if (!user) return;
     setIsSubmitting(true);
 
+    if (!formData.buy_date && !formData.sell_date) {
+      alert('Please enter at least one date (Buy or Sell).');
+      setIsSubmitting(false);
+      return;
+    }
+
     const payload: Omit<OptionPosition, 'id' | 'created_at'> = {
         symbol: formData.symbol.toUpperCase(),
         type: formData.type,
         quantity: parseFloat(formData.quantity) || 1,
-        buy_date: formData.buy_date || null,
-        sell_date: formData.sell_date || null,
+        buy_date: toIsoDate(formData.buy_date),
+        sell_date: toIsoDate(formData.sell_date),
         buy_price: formData.buy_price ? parseFloat(formData.buy_price) : null,
         sell_price: formData.sell_price ? parseFloat(formData.sell_price) : null,
         target: formData.target,
@@ -221,18 +277,12 @@ export default function OptionManager() {
   };
 
   const calculateChange = (opt: OptionPosition) => {
-    const isClosed = opt.buy_date && opt.sell_date;
-    if (!isClosed) return { abs: 0, percent: 0 };
-    
-    const qty = opt.quantity || 1;
-    const bPrice = opt.buy_price || 0;
-    const sPrice = opt.sell_price || 0;
-    
-    const abs = (sPrice - bPrice) * qty;
-    const isLong = opt.type.startsWith('BUY');
-    const base = isLong ? bPrice : sPrice;
-    const percent = base !== 0 ? (abs / (base * qty)) * 100 : 0;
-    
+    if (!isOptionClosed(opt)) return { abs: 0, percent: 0 };
+
+    const buyPrice = opt.buy_price ?? 0;
+    const abs = calcPnl(opt);
+    const percent = buyPrice !== 0 ? ((opt.sell_price ?? 0) - buyPrice) / buyPrice * 100 : 0;
+
     return { abs, percent };
   };
 
@@ -265,7 +315,7 @@ export default function OptionManager() {
               <FiDollarSign size={32} />
             </div>
             <div className="stat-title">Open Position Value</div>
-            <div className="stat-value text-3xl">{usdFormatter.format(stats.totalOpenValue * 100)}</div>
+            <div className="stat-value text-3xl">{usdFormatter.format(stats.totalOpenValue)}</div>
           </div>
         </div>
         <div className="stats bg-base-100 border-base-200 border shadow">
@@ -275,7 +325,7 @@ export default function OptionManager() {
             </div>
             <div className="stat-title">Total PnL</div>
             <div className="stat-value text-3xl" style={{ color: stats.totalPnL >= 0 ? '#22c55e' : '#ef4444' }}>
-                {(stats.totalPnL >= 0 ? '+' : '') + usdFormatter.format(stats.totalPnL * 100)}
+                {(stats.totalPnL >= 0 ? '+' : '') + usdFormatter.format(stats.totalPnL)}
             </div>
           </div>
         </div>
@@ -291,14 +341,14 @@ export default function OptionManager() {
                 <th className="text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('quantity')}>Qty {renderSortArrow('quantity')}</th>
                 <th className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('target')}>Target & Note {renderSortArrow('target')}</th>
                 <th className="text-right cursor-pointer select-none whitespace-nowrap text-xs">Prices (B/S)</th>
-                <th className="text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('created_at')}>PnL / Change {renderSortArrow('created_at')}</th>
+                <th className="text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('buy_price')}>PnL / Change {renderSortArrow('buy_price')}</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredOptions.map((opt) => {
                 const { abs, percent } = calculateChange(opt);
-                const isClosed = opt.buy_date && opt.sell_date;
+                const isClosed = isOptionClosed(opt);
                 const rowBg = isClosed ? (abs >= 0 ? 'bg-success/5' : 'bg-error/5') : '';
                 
                 return (
@@ -341,7 +391,7 @@ export default function OptionManager() {
                       {isClosed ? (
                           <div className="flex flex-col">
                             <span className={`font-bold ${abs >= 0 ? 'text-success' : 'text-error'}`}>
-                                {abs >= 0 ? '+' : ''}{usdFormatter.format(abs * 100)}
+                                {abs >= 0 ? '+' : ''}{usdFormatter.format(abs)}
                             </span>
                             <span className={`text-xs ${abs >= 0 ? 'text-success' : 'text-error'}`}>
                                 {abs >= 0 ? '+' : ''}{percent.toFixed(2)}%
@@ -379,60 +429,79 @@ export default function OptionManager() {
             {editingId ? 'Edit Option Position' : 'Add New Option Position'}
           </h3>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="form-control">
-                    <label className="label"><span className="label-text font-semibold">Symbol</span></label>
-                    <input type="text" className="input input-bordered focus:input-primary uppercase" placeholder="e.g. SPY 450C" required value={formData.symbol} onChange={(e) => setFormData({ ...formData, symbol: e.target.value })} />
-                </div>
-                <div className="form-control">
-                    <label className="label"><span className="label-text font-semibold">Option Type</span></label>
-                    <select className="select select-bordered focus:select-primary" value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as OptionType })}>
-                        <option value="BUY_CALL">Buy Call (Long)</option>
-                        <option value="BUY_PUT">Buy Put (Long)</option>
-                        <option value="SELL_CALL">Sell Call (Short)</option>
-                        <option value="SELL_PUT">Sell Put (Short)</option>
-                    </select>
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Symbol */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Symbol <span className="text-error">*</span></label>
+              <input type="text" className="input input-bordered flex-1 uppercase" placeholder="e.g. SPY 450C" required value={formData.symbol} onChange={(e) => setFormData({ ...formData, symbol: e.target.value })} />
             </div>
 
-            <div className="form-control">
-                <label className="label"><span className="label-text font-semibold text-primary">Quantity</span></label>
-                <input type="number" step="1" min="1" className="input input-bordered focus:input-primary" required value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} />
+            {/* Option Type */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Type</label>
+              <select className="select select-bordered flex-1" value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as OptionType })}>
+                <option value="BUY_CALL">Buy Call (Long)</option>
+                <option value="BUY_PUT">Buy Put (Long)</option>
+                <option value="SELL_CALL">Sell Call (Short)</option>
+                <option value="SELL_PUT">Sell Put (Short)</option>
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-base-200/50 rounded-xl">
-                <div className="space-y-4">
-                    <div className="form-control">
-                        <label className="label"><span className="label-text flex items-center gap-1 font-semibold text-info"><FiCalendar /> Buy Date</span></label>
-                        <input type="date" className="input input-bordered input-sm" value={formData.buy_date} onChange={(e) => setFormData({ ...formData, buy_date: e.target.value })} />
-                    </div>
-                    <div className="form-control">
-                        <label className="label"><span className="label-text flex items-center gap-1 font-semibold text-info"><FiDollarSign /> Buy Price</span></label>
-                        <input type="number" step="0.01" className="input input-bordered input-sm" placeholder="Price paid" value={formData.buy_price} onChange={(e) => setFormData({ ...formData, buy_price: e.target.value })} />
-                    </div>
-                </div>
-                <div className="space-y-4 border-l border-base-300 pl-6">
-                    <div className="form-control">
-                        <label className="label"><span className="label-text flex items-center gap-1 font-semibold text-warning"><FiCalendar /> Sell Date</span></label>
-                        <input type="date" className="input input-bordered input-sm" value={formData.sell_date} onChange={(e) => setFormData({ ...formData, sell_date: e.target.value })} />
-                    </div>
-                    <div className="form-control">
-                        <label className="label"><span className="label-text flex items-center gap-1 font-semibold text-warning"><FiDollarSign /> Sell Price</span></label>
-                        <input type="number" step="0.01" className="input input-bordered input-sm" placeholder="Price received" value={formData.sell_price} onChange={(e) => setFormData({ ...formData, sell_price: e.target.value })} />
-                    </div>
-                </div>
+            {/* Quantity */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Quantity <span className="text-error">*</span></label>
+              <input type="text" inputMode="numeric" className="input input-bordered flex-1 font-mono" required placeholder="1" value={formData.quantity} onChange={(e) => { if (/^\d*$/.test(e.target.value)) setFormData({ ...formData, quantity: e.target.value }); }} />
             </div>
 
-            <div className="form-control">
-                <label className="label"><span className="label-text font-semibold">Target Price / Level</span></label>
-                <input type="text" className="input input-bordered focus:input-primary" placeholder="e.g. 2.50 or Break even at 440" value={formData.target} onChange={(e) => setFormData({ ...formData, target: e.target.value })} />
+            <div className="divider my-1 text-xs opacity-40">Prices &amp; Dates</div>
+
+            {/* Buy Date */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold text-info">Buy Date <span className="text-error">*</span></label>
+              <div className="flex flex-1 gap-2">
+                <input type="text" inputMode="numeric" className="input input-bordered flex-1 font-mono" placeholder="DD.MM.YYYY" maxLength={10} value={formData.buy_date} onChange={(e) => setFormData({ ...formData, buy_date: formatDateInput(e.target.value) })} />
+                {formData.buy_date && (
+                  <button type="button" className="btn btn-ghost btn-sm btn-square" onClick={() => setFormData({ ...formData, buy_date: '' })}><FiX /></button>
+                )}
+              </div>
             </div>
 
-            <div className="form-control">
-                <label className="label"><span className="label-text font-semibold">Note</span></label>
-                <textarea className="textarea textarea-bordered focus:textarea-primary h-24" placeholder="Trade plan, reasons, etc." value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })}></textarea>
+            {/* Buy Price */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold text-info">Buy Price</label>
+              <input type="text" inputMode="decimal" className="input input-bordered flex-1 font-mono" placeholder="0.00" value={formData.buy_price} onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setFormData({ ...formData, buy_price: e.target.value }); }} />
             </div>
+
+            {/* Sell Date */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold text-warning">Sell Date <span className="text-error">*</span></label>
+              <div className="flex flex-1 gap-2">
+                <input type="text" inputMode="numeric" className="input input-bordered flex-1 font-mono" placeholder="DD.MM.YYYY" maxLength={10} value={formData.sell_date} onChange={(e) => setFormData({ ...formData, sell_date: formatDateInput(e.target.value) })} />
+                {formData.sell_date && (
+                  <button type="button" className="btn btn-ghost btn-sm btn-square" onClick={() => setFormData({ ...formData, sell_date: '' })}><FiX /></button>
+                )}
+              </div>
+            </div>
+
+            {/* Sell Price */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold text-warning">Sell Price</label>
+              <input type="text" inputMode="decimal" className="input input-bordered flex-1 font-mono" placeholder="0.00" value={formData.sell_price} onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setFormData({ ...formData, sell_price: e.target.value }); }} />
+            </div>
+
+            {/* Target */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Target</label>
+              <input type="text" className="input input-bordered flex-1" placeholder="e.g. 2.50 or break even at 440" value={formData.target} onChange={(e) => setFormData({ ...formData, target: e.target.value })} />
+            </div>
+
+            {/* Note */}
+            <div className="flex items-start gap-4">
+              <label className="w-32 shrink-0 pt-3 text-sm font-bold">Note</label>
+              <textarea className="textarea textarea-bordered h-20 flex-1" placeholder="Trade plan, reasons, etc." value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })}></textarea>
+            </div>
+
+            <p className="text-xs opacity-50"><span className="text-error">*</span> At least one of Buy Date or Sell Date is required.</p>
 
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={handleCloseModal}>Cancel</button>

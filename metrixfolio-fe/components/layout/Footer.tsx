@@ -7,7 +7,7 @@ export const Footer = () => {
         <aside>
           <p>
             © {new Date().getFullYear()} -{' '}
-            <a href="mailto:dogan.hurkan@gmail.com">Hürkan Dogan</a> |
+            <a href="mailto:dogan.hurkan@gmail.com">by Hürkan Dogan</a> |
             Metrixfolio v{version}
           </p>
         </aside>

@@ -3,10 +3,12 @@
 import { StatCards } from '@/components/dashboard/StatCards';
 import { GoalTable } from '@/components/dashboard/GoalTable';
 import { usePortfolio } from '@/hooks/usePortfolio';
+import { useIBKRSync } from '@/hooks/useIBKRSync';
 import { CategoryCards } from '@/components/dashboard/CategoryCards';
 
 export default function Dashboard() {
   const { portfolio, isLoading, isError, history } = usePortfolio();
+  const { isConfigured, lastSync, isSyncing } = useIBKRSync();
 
   const lastHistory =
     history && history.length > 0 ? history[history.length - 2] : undefined;
@@ -31,7 +33,18 @@ export default function Dashboard() {
   return (
     <>
       <div className="flex flex-col gap-6">
-        <h1 className="text-4xl font-bold">Dashboard</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-4xl font-bold">Dashboard</h1>
+          {isConfigured && (
+            <span className="text-xs opacity-50 flex items-center gap-1">
+              {isSyncing ? (
+                <><span className="loading loading-spinner loading-xs" /> IBKR syncing…</>
+              ) : lastSync ? (
+                <>IBKR · Last sync {lastSync}</>
+              ) : null}
+            </span>
+          )}
+        </div>
         <StatCards
           totalValue={portfolio?.total_value || 0}
           totalInvested={portfolio?.total_cost || 0}

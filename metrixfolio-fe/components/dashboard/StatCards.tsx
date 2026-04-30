@@ -30,8 +30,8 @@ export const StatCards: React.FC<StatCardsProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const { user } = useAuth();
   const { totalDebtUsd } = useDebts();
-  const netAmount = totalProfit - totalDebtUsd;
-  const netPercentage = totalValue > 0 ? (netAmount / totalValue) * 100 : 0;
+  const netLiq = totalValue - totalDebtUsd;
+  const netLiqPercentage = totalValue > 0 ? (netLiq / totalValue) * 100 : 0;
 
   useEffect(() => {
     if (!user || isLoaded) return;
@@ -48,6 +48,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
             GOAL_MILESTONES.find((g) => g > totalValue) ||
             GOAL_MILESTONES[GOAL_MILESTONES.length - 1];
           setGoalAmount(nextGoal);
+          await setDoc(docRef, { goal_amount: nextGoal }, { merge: true });
         }
         setIsLoaded(true);
       } catch (error) {
@@ -81,12 +82,12 @@ export const StatCards: React.FC<StatCardsProps> = ({
 
   const renderDiff = (current: number, prev: number | undefined) => {
     if (prev === undefined)
-      return <span className="text-xs opacity-60">No history</span>;
+      return <span className="text-sm font-bold">No history</span>;
 
     const diff = current - prev;
     if (Math.abs(diff) < 0.01)
       return (
-        <span className="flex items-center gap-1 text-xs opacity-60">
+        <span className="flex items-center gap-1 text-sm opacity-60">
           <FiMinus /> No Change
         </span>
       );
@@ -96,7 +97,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
     const Icon = isPos ? FiArrowUp : FiArrowDown;
 
     return (
-      <span className={`flex items-center gap-1 text-xs font-bold ${color}`}>
+      <span className={`flex items-center gap-1 text-sm font-bold ${color}`}>
         <Icon /> {formatCurrency(Math.abs(diff))}
       </span>
     );
@@ -121,8 +122,11 @@ export const StatCards: React.FC<StatCardsProps> = ({
         <div className="stat-value text-primary text-3xl font-extrabold tracking-tight lg:text-4xl">
           {formatCurrency(totalValue)}
         </div>
-        <div className="stat-desc mt-1 font-medium">
+        <div className="stat-desc mt-1 font-medium flex flex-row items-center justify-between w-full">
           {renderDiff(totalValue, prevTotalValue)}
+          <span className={`ml-auto flex items-center text-sm font-semibold whitespace-nowrap pl-2 ${netLiq >= 0 ? 'text-success' : 'text-error'}`}>
+            Net Liq: {formatPercentage(netLiqPercentage)} | {formatCurrency(netLiq)}
+          </span>
         </div>
       </div>
 
@@ -142,14 +146,11 @@ export const StatCards: React.FC<StatCardsProps> = ({
         >
           {formatCurrency(totalProfit)}
         </div>
-        <div className="stat-desc mt-1 flex flex-row items-center justify-between w-full">
+        <div className="stat-desc mt-1">
           <span
             className={`text-sm font-bold flex-shrink-0 ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}
           >
             {formatPercentage(profitPercentage)}
-          </span>
-          <span className={`ml-auto flex items-center text-xs font-semibold whitespace-nowrap pl-2 ${netAmount >= 0 ? 'text-success' : 'text-error'}`}>
-            Net: {formatPercentage(netPercentage)} | {formatCurrency(netAmount)}
           </span>
         </div>
       </div>

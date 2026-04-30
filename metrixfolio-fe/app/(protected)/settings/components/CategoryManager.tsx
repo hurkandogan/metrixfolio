@@ -76,6 +76,10 @@ export default function CategoryManager() {
         alert('A category with this name already exists.');
         return;
       }
+      if (type === 'CASH' && hasCashCategory) {
+        alert('Only one Cash category is allowed.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -112,6 +116,11 @@ export default function CategoryManager() {
 
   if (isLoading) return <div className="skeleton h-32 w-full"></div>;
 
+  // True when a CASH category exists and we're not currently editing it
+  const hasCashCategory = categories.some(
+    (c) => c.type === 'CASH' && c.id !== editingCategory?.id,
+  );
+
   return (
     <div className="space-y-6">
       <div
@@ -128,7 +137,7 @@ export default function CategoryManager() {
         )}
 
         <div className="form-control min-w-50 flex-1">
-          <label className="label">
+          <label className="label pb-1">
             <span className="label-text">Category Name</span>
           </label>
           <input
@@ -141,7 +150,7 @@ export default function CategoryManager() {
         </div>
 
         <div className="form-control w-24">
-          <label className="label">
+          <label className="label pb-1">
             <span className="label-text">Target %</span>
           </label>
           <input
@@ -153,7 +162,7 @@ export default function CategoryManager() {
         </div>
 
         <div className="form-control w-40">
-          <label className="label">
+          <label className="label pb-1">
             <span className="label-text">Type</span>
           </label>
           <select
@@ -163,13 +172,13 @@ export default function CategoryManager() {
           >
             <option value="ASSET">Asset</option>
             <option value="CRYPTO">Crypto</option>
-            <option value="CASH">Cash</option>
+            {!hasCashCategory && <option value="CASH">Cash</option>}
           </select>
         </div>
 
         {/* Color Selection */}
         <div className="form-control w-full md:w-auto">
-          <label className="label">
+          <label className="label pb-1">
             <span className="label-text">Color</span>
           </label>
           <div className="flex flex-wrap gap-2 p-1">

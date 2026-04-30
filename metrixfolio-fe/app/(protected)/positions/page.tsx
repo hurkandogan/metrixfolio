@@ -17,6 +17,7 @@ import {
   getAssetsAction,
   updateAssetAction,
   deleteAssetAction,
+  purgeZeroQuantityAssetsAction,
   closeAssetAction,
   getClosedAssetsAction,
   updateClosedAssetAction,
@@ -68,24 +69,12 @@ export default function PositionsPage() {
       getCategoriesAction(user.uid),
     ]);
 
-    assetsData = assetsData.map((asset) => {
-      const amount = parseFloat(asset.amount?.toString()) || 0;
-      const currentPrice = parseFloat(asset.current_price?.toString()) || 0;
-      const avgCost = parseFloat(asset.avg_cost?.toString()) || 0;
-      const multiplier = parseFloat(asset.multiplier?.toString()) || 1;
-
-      const marketValue = amount * currentPrice * multiplier;
-      const unrealizedPnl = (currentPrice - avgCost) * amount * multiplier;
-
-      return {
-        ...asset,
-        amount,
-        current_price: currentPrice,
-        avg_cost: avgCost,
-        market_value: marketValue,
-        unrealized_pnl: unrealizedPnl,
-      };
-    });
+    // Purge zero-quantity positions in a single batch request
+    const zeroQtyIds = assetsData.filter((a) => a.amount === 0).map((a) => a.id);
+    if (zeroQtyIds.length > 0) {
+      await purgeZeroQuantityAssetsAction(user.uid, zeroQtyIds);
+      assetsData = assetsData.filter((a) => a.amount !== 0);
+    }
 
     setAssets(assetsData);
     setClosedAssets(closedData);
@@ -358,12 +347,10 @@ export default function PositionsPage() {
           <p className="text-base-content/70">Manage your assets and categories</p>
         </div>
         <div className="flex flex-col items-end gap-2">
+          <AddManualAssetModal categories={categories} onSuccess={loadData} />
           <div className="join bg-base-100 border border-base-200">
             <button className={`join-item btn btn-sm px-6 ${currentTab === 'OPEN' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setCurrentTab('OPEN')}>Open</button>
             <button className={`join-item btn btn-sm px-6 ${currentTab === 'CLOSED' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setCurrentTab('CLOSED')}>Closed</button>
-          </div>
-          <div className="flex items-center gap-4">
-            <AddManualAssetModal categories={categories} onSuccess={loadData} />
           </div>
         </div>
       </div>
@@ -396,7 +383,7 @@ export default function PositionsPage() {
                         <div className="text-xs opacity-50">{asset.name}</div>
                       </td>
                       <td>{asset.amount}</td>
-                      <td>{formatMoney(asset.current_price.toString(), asset.currency)}</td>
+                      <td>{formatMoney(asset.current_price.toString(), 'USD')}</td>
                       <td className="text-right">
                         <div className="flex justify-end gap-2">
                           <button className="btn btn-xs btn-outline btn-warning" onClick={() => openEditModal(asset)}><FiTag /> Categorize</button>
@@ -452,11 +439,11 @@ export default function PositionsPage() {
                       <td><div className="font-bold">{asset.symbol}</div><div className="text-xs opacity-50">{asset.name}</div></td>
                       <td><div className="badge badge-outline">{getCategoryName(asset.category_id)}</div></td>
                       <td className="text-right font-mono">{asset.amount}</td>
-                      <td className="text-right font-mono">{formatMoney(asset.avg_cost.toString(), asset.currency)}</td>
-                      <td className="text-right font-mono">{formatMoney(asset.current_price.toString(), asset.currency)}</td>
-                      <td className="text-right font-mono">{formatMoney((asset.market_value || 0).toString(), asset.currency)}</td>
+                      <td className="text-right font-mono">{formatMoney(asset.avg_cost.toString(), 'USD')}</td>
+                      <td className="text-right font-mono">{formatMoney(asset.current_price.toString(), 'USD')}</td>
+                      <td className="text-right font-mono">{formatMoney((asset.market_value || 0).toString(), 'USD')}</td>
                       <td className={`text-right font-mono font-bold ${asset.unrealized_pnl >= 0 ? 'text-success' : 'text-error'}`}>
-                        {asset.unrealized_pnl > 0 ? '+' : ''}{formatMoney(asset.unrealized_pnl.toString(), asset.currency)}
+                        {asset.unrealized_pnl > 0 ? '+' : ''}{formatMoney(asset.unrealized_pnl.toString(), 'USD')}
                       </td>
                       <td className="text-right">
                         <div className="flex justify-end gap-2">

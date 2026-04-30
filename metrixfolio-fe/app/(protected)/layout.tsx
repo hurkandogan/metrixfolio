@@ -2,6 +2,7 @@
 import { Footer } from '@/components/layout/Footer';
 import { NavBar } from '@/components/layout/NavBar';
 import { useAuth } from '@/context/AuthProvider';
+import { useIBKRSync } from '@/hooks/useIBKRSync';
 import { redirect } from 'next/navigation';
 
 export default function ProtectedLayout({
@@ -10,6 +11,8 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }>) {
   const { user, loading } = useAuth();
+  useIBKRSync(); // triggers daily auto-sync if IBKR is configured
+
   if (loading) {
     return null;
   }

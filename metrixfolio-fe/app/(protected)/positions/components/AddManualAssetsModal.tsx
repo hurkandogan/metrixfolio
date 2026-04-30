@@ -73,113 +73,98 @@ export default function AddManualAssetModal({ categories, onSuccess }: Props) {
         <div className="modal-box">
           <h3 className="mb-4 text-lg font-bold">Add Manual Asset</h3>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-bold">Category</span>
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Category */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Category</label>
               <select
-                className="select select-bordered select-primary"
+                className="select select-bordered select-primary flex-1"
                 value={form.category_id}
-                onChange={(e) =>
-                  setForm({ ...form, category_id: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
               >
                 <option value="">Uncategorized</option>
                 {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
 
             {!isCash && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Symbol</span>
-                  </label>
+              <>
+                {/* Symbol */}
+                <div className="flex items-center gap-4">
+                  <label className="w-32 shrink-0 text-sm font-bold">Symbol <span className="text-error">*</span></label>
                   <input
                     required
                     type="text"
                     placeholder="e.g. XAU"
-                    className="input input-bordered uppercase"
+                    className="input input-bordered flex-1 uppercase"
                     value={form.symbol}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        symbol: e.target.value.toLocaleUpperCase(),
-                      })
-                    }
+                    onChange={(e) => setForm({ ...form, symbol: e.target.value.toLocaleUpperCase() })}
                   />
                 </div>
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Name</span>
-                  </label>
+
+                {/* Name */}
+                <div className="flex items-center gap-4">
+                  <label className="w-32 shrink-0 text-sm font-bold">Name <span className="text-error">*</span></label>
                   <input
                     required
                     type="text"
                     placeholder="Gold Bar"
-                    className="input input-bordered"
+                    className="input input-bordered flex-1"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                   />
                 </div>
+              </>
+            )}
+
+            {/* Quantity */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Quantity <span className="text-error">*</span></label>
+              <input
+                required
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                className="input input-bordered flex-1 font-mono"
+                value={form.amount}
+                onChange={(e) => {
+                  if (/^-?\d*\.?\d*$/.test(e.target.value)) setForm({ ...form, amount: e.target.value });
+                }}
+              />
+            </div>
+
+            {!isCash && (
+              /* Avg Cost */
+              <div className="flex items-center gap-4">
+                <label className="w-32 shrink-0 text-sm font-bold">Avg Cost <span className="text-error">*</span></label>
+                <input
+                  required
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className="input input-bordered flex-1 font-mono"
+                  value={form.avg_cost}
+                  onChange={(e) => {
+                    if (/^-?\d*\.?\d*$/.test(e.target.value)) setForm({ ...form, avg_cost: e.target.value });
+                  }}
+                />
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Quantity / Amount</span>
-                </label>
-                <input
-                  required
-                  type="number"
-                  step="any"
-                  className="input input-bordered"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                />
-              </div>
-              {!isCash && (
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Avg Cost (Unit)</span>
-                  </label>
-                  <input
-                    required
-                    type="number"
-                    step="any"
-                    className="input input-bordered"
-                    value={form.avg_cost}
-                    onChange={(e) =>
-                      setForm({ ...form, avg_cost: e.target.value })
-                    }
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-semibold">Currency</span>
-                </label>
-                <select
-                  className="select select-bordered"
-                  value={form.currency}
-                  onChange={(e) =>
-                    setForm({ ...form, currency: e.target.value })
-                  }
-                >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="TRY">TRY</option>
-                </select>
-              </div>
+            {/* Currency */}
+            <div className="flex items-center gap-4">
+              <label className="w-32 shrink-0 text-sm font-bold">Currency</label>
+              <select
+                className="select select-bordered flex-1"
+                value={form.currency}
+                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+              >
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="TRY">TRY</option>
+              </select>
             </div>
 
             <div className="modal-action">

@@ -2,6 +2,7 @@ import useSWR from 'swr';
 import { useAuth } from '@/context/AuthProvider';
 import { getDebtsAction } from '@/actions/debts';
 import { getExchangeRatesAction } from '@/actions/currency';
+import { CurrencyConverter } from '@/utils/currency-math';
 import { Debt } from '@/types/debt';
 
 export function useDebts() {
@@ -15,39 +16,24 @@ export function useDebts() {
         getExchangeRatesAction(),
       ]);
 
-      const rateMap = new Map<string, number>();
-      rates.forEach((r) => {
-        rateMap.set(`${r.from}_${r.to}`, r.rate);
-      });
-
-      const convertToUsd = (amount: number, fromCurrency: string) => {
-        if (!fromCurrency || fromCurrency === 'USD') return amount;
-        const directKey = `${fromCurrency}_USD`;
-        if (rateMap.has(directKey)) return amount * rateMap.get(directKey)!;
-        const inverseKey = `USD_${fromCurrency}`;
-        if (rateMap.has(inverseKey) && rateMap.get(inverseKey)! !== 0)
-          return amount / rateMap.get(inverseKey)!;
-        return amount;
-      };
-
-      let totalDebtUsd = 0;
-
-      debts.forEach((debt) => {
-        const debtValueUsd = convertToUsd(debt.amount, debt.currency);
-        totalDebtUsd += debtValueUsd;
-      });
+      const converter = new CurrencyConverter(rates);
+      const totalDebtUsd = debts.reduce(
+        (sum, debt) => sum + converter.convert(debt.amount, debt.currency, 'USD'),
+        0,
+      );
 
       return { debts, totalDebtUsd };
     },
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-    }
+      dedupingInterval: 300000,
+    },
   );
 
   return {
     debts: data?.debts || ([] as Debt[]),
-    totalDebtUsd: data?.totalDebtUsd || 0,
+    totalDebtUsd: data?.totalDebtUsd ?? 0,
     isLoading,
     isError: error,
     mutate,
