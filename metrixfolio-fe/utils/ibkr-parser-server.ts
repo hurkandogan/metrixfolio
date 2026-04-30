@@ -20,7 +20,7 @@ export function parseIBKRXmlServer(xmlString: string): IBKRParseResult {
 
   // ── Open Positions ──────────────────────────────────────────────────────
   const assets: IBKRAsset[] = [];
-  const openPosRegex = /<OpenPosition\s([^/]*?)\/>/gs;
+  const openPosRegex = /<OpenPosition\s([^/]*?)\/>/g;
   let m: RegExpExecArray | null;
 
   while ((m = openPosRegex.exec(xmlString)) !== null) {
@@ -61,7 +61,7 @@ export function parseIBKRXmlServer(xmlString: string): IBKRParseResult {
 
   // ── Cash Positions ──────────────────────────────────────────────────────
   const cashPositions: IBKRCashPosition[] = [];
-  const cashRegex = /<CashReportCurrency\s([^/]*?)\/>/gs;
+  const cashRegex = /<CashReportCurrency\s([^/]*?)\/>/g;
 
   while ((m = cashRegex.exec(xmlString)) !== null) {
     const tag = m[0];
