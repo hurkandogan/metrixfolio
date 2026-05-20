@@ -234,6 +234,8 @@ export async function getAnalysesAction(
       short_ratio: d.short_ratio ?? null,
       week52_high: d.week52_high ?? null,
       week52_low: d.week52_low ?? null,
+      rsi: d.rsi ?? null,
+      iv: d.iv ?? null,
     };
   });
 }

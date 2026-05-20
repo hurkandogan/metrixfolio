@@ -51,4 +51,6 @@ export interface StockAnalysis {
   short_ratio: number | null;
   week52_high: number | null;
   week52_low: number | null;
+  rsi: number | null;
+  iv: number | null;
 }

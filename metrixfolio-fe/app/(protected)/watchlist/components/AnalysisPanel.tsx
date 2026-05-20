@@ -276,6 +276,46 @@ export const AnalysisPanel: FC<AnalysisPanelProps> = ({
                       <span className="opacity-50">Payout:</span>{' '}
                       {fmt(selectedDay.payout_ratio, { suffix: '%' })}
                     </div>
+                    <div>
+                      <span className="opacity-50">RSI:</span>{' '}
+                      <span
+                        className={
+                          selectedDay.rsi != null
+                            ? selectedDay.rsi < 30
+                              ? 'text-success font-bold'
+                              : selectedDay.rsi > 70
+                                ? 'text-error font-bold'
+                                : ''
+                            : ''
+                        }
+                      >
+                        {fmt(selectedDay.rsi, { decimals: 1 })}
+                        {selectedDay.rsi != null &&
+                        selectedDay.rsi < 30 &&
+                        selectedDay.iv != null &&
+                        selectedDay.iv > 90
+                          ? ' 🔥'
+                          : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="opacity-50">IV:</span>{' '}
+                      <span
+                        className={
+                          selectedDay.iv != null && selectedDay.iv > 90
+                            ? 'text-warning font-bold'
+                            : ''
+                        }
+                      >
+                        {fmt(selectedDay.iv, { decimals: 1, suffix: '%' })}
+                        {selectedDay.rsi != null &&
+                        selectedDay.rsi < 30 &&
+                        selectedDay.iv != null &&
+                        selectedDay.iv > 90
+                          ? ' 🔥'
+                          : ''}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -316,6 +356,24 @@ export const AnalysisPanel: FC<AnalysisPanelProps> = ({
           <MetricCard label="Mkt Cap" value={fmtCompact(latest.market_cap)} />
           <MetricCard label="P/E" value={fmt(latest.pe)} />
           <MetricCard label="Beta" value={fmt(latest.beta)} />
+          <MetricCard
+            label="RSI"
+            value={`${fmt(latest.rsi, { decimals: 1 })}${latest.rsi != null && latest.rsi < 30 && latest.iv != null && latest.iv > 90 ? ' 🔥' : ''}`}
+            color={
+              latest.rsi != null
+                ? latest.rsi < 30
+                  ? 'text-success'
+                  : latest.rsi > 70
+                    ? 'text-error'
+                    : ''
+                : ''
+            }
+          />
+          <MetricCard
+            label="IV"
+            value={`${fmt(latest.iv, { decimals: 1, suffix: '%' })}${latest.rsi != null && latest.rsi < 30 && latest.iv != null && latest.iv > 90 ? ' 🔥' : ''}`}
+            color={latest.iv != null && latest.iv > 90 ? 'text-warning' : ''}
+          />
           <MetricCard
             label="52W Range"
             value={`${fmt(latest.week52_low, { prefix: '$', decimals: 0 })} – ${fmt(latest.week52_high, { prefix: '$', decimals: 0 })}`}
