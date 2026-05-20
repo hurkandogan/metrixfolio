@@ -32,7 +32,12 @@ export function usePortfolio() {
   const { user } = useAuth();
   const { convert } = useCurrencyConverter();
 
-  const { data: rawData, error, isLoading, mutate } = useSWR(
+  const {
+    data: rawData,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR(
     user ? ['portfolio-data', user.uid] : null,
     async ([_, userId]) => {
       const [categories, assets, transactions, history] = await Promise.all([
@@ -45,10 +50,10 @@ export function usePortfolio() {
       return { categories, assets, transactions, history };
     },
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
       refreshInterval: 0,
-      dedupingInterval: 300000,
+      dedupingInterval: 60000,
       keepPreviousData: true,
     },
   );
@@ -64,13 +69,19 @@ export function usePortfolio() {
     assets.forEach((asset) => {
       const assetCurrency = asset.currency || 'USD';
       const marketValueUsd = convert(asset.market_value || 0, assetCurrency);
-      const unrealizedPnlUsd = convert(asset.unrealized_pnl || 0, assetCurrency);
+      const unrealizedPnlUsd = convert(
+        asset.unrealized_pnl || 0,
+        assetCurrency,
+      );
 
       totalValue += marketValueUsd;
       totalUnrealizedPnl += unrealizedPnlUsd;
 
       const catId = asset.category_id || 'uncategorized';
-      categoryValues.set(catId, (categoryValues.get(catId) || 0) + marketValueUsd);
+      categoryValues.set(
+        catId,
+        (categoryValues.get(catId) || 0) + marketValueUsd,
+      );
     });
 
     let totalInvested = 0;
@@ -86,7 +97,8 @@ export function usePortfolio() {
     });
 
     const totalPnl = totalValue - totalInvested;
-    const pnlPercentage = totalInvested !== 0 ? (totalPnl / totalInvested) * 100 : 0;
+    const pnlPercentage =
+      totalInvested !== 0 ? (totalPnl / totalInvested) * 100 : 0;
 
     const categoryAnalysis = categories.map((cat) => {
       const val = categoryValues.get(cat.id) || 0;
