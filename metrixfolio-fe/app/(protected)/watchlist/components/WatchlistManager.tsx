@@ -10,8 +10,13 @@ import {
   addCommentAction,
   updateCommentAction,
   deleteCommentAction,
+  getAnalysesAction,
 } from '@/actions/watchlist';
-import { WatchlistItem, WatchlistComment } from '@/types/watchlist';
+import {
+  WatchlistItem,
+  WatchlistComment,
+  StockAnalysis,
+} from '@/types/watchlist';
 import {
   FiPlus,
   FiTrash2,
@@ -23,6 +28,7 @@ import {
   FiClock,
   FiUser,
 } from 'react-icons/fi';
+import { AnalysisPanel } from './AnalysisPanel';
 
 export default function WatchlistManager() {
   const { user } = useAuth();
@@ -31,9 +37,18 @@ export default function WatchlistManager() {
   const [newSymbol, setNewSymbol] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
-  const [comments, setComments] = useState<Record<string, WatchlistComment[]>>({});
+  const [comments, setComments] = useState<Record<string, WatchlistComment[]>>(
+    {},
+  );
+  const [analyses, setAnalyses] = useState<Record<string, StockAnalysis[]>>({});
+  const [analysesLoading, setAnalysesLoading] = useState<
+    Record<string, boolean>
+  >({});
   const [newComment, setNewComment] = useState('');
-  const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
+  const [editingComment, setEditingComment] = useState<{
+    id: string;
+    text: string;
+  } | null>(null);
   const [isSendingComment, setIsSendingComment] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,7 +63,8 @@ export default function WatchlistManager() {
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const loadWatchlist = async () => {
@@ -91,6 +107,12 @@ export default function WatchlistManager() {
       const data = await getCommentsAction(symbol);
       setComments((prev) => ({ ...prev, [symbol]: data }));
     }
+    if (!analyses[symbol]) {
+      setAnalysesLoading((prev) => ({ ...prev, [symbol]: true }));
+      const data = await getAnalysesAction(symbol);
+      setAnalyses((prev) => ({ ...prev, [symbol]: data }));
+      setAnalysesLoading((prev) => ({ ...prev, [symbol]: false }));
+    }
   };
 
   const handleAddComment = async (symbol: string) => {
@@ -107,7 +129,12 @@ export default function WatchlistManager() {
 
   const handleUpdateComment = async (symbol: string) => {
     if (!user || !editingComment) return;
-    const res = await updateCommentAction(user.uid, symbol, editingComment.id, editingComment.text);
+    const res = await updateCommentAction(
+      user.uid,
+      symbol,
+      editingComment.id,
+      editingComment.text,
+    );
     if (res.success) {
       setEditingComment(null);
       const data = await getCommentsAction(symbol);
@@ -133,21 +160,14 @@ export default function WatchlistManager() {
 
   const formatDate = (iso: string) => {
     if (!iso) return '';
-    return new Date(iso).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    const d = new Date(iso);
+    return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
   };
 
   const formatDateTime = (iso: string) => {
     if (!iso) return '';
-    return new Date(iso).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const d = new Date(iso);
+    return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   };
 
   if (isLoading) {
@@ -192,7 +212,9 @@ export default function WatchlistManager() {
         <div className="card bg-base-100 shadow">
           <div className="card-body items-center text-center">
             <p className="text-lg opacity-60">No items in watchlist yet.</p>
-            <p className="text-sm opacity-40">Add a symbol above to get started.</p>
+            <p className="text-sm opacity-40">
+              Add a symbol above to get started.
+            </p>
           </div>
         </div>
       ) : (
@@ -204,7 +226,7 @@ export default function WatchlistManager() {
             return (
               <div
                 key={item.symbol}
-                className="collapse collapse-arrow bg-base-100 border border-base-300 shadow-sm"
+                className="collapse-arrow bg-base-100 border-base-300 collapse border shadow-sm"
               >
                 <input
                   type="radio"
@@ -216,7 +238,7 @@ export default function WatchlistManager() {
                 <div className="collapse-title flex items-center gap-4 pr-12">
                   <div className="flex flex-1 items-center gap-4">
                     <div className="flex flex-col">
-                      <span className="text-lg font-bold text-primary">
+                      <span className="text-primary text-lg font-bold">
                         {item.symbol}
                       </span>
                       <span className="text-xs opacity-60">
@@ -263,17 +285,31 @@ export default function WatchlistManager() {
                   <div className="mb-4 flex flex-wrap gap-3 text-sm sm:hidden">
                     <span className="font-medium">{item.name}</span>
                     {item.category && (
-                      <span className="badge badge-outline badge-sm">{item.category}</span>
+                      <span className="badge badge-outline badge-sm">
+                        {item.category}
+                      </span>
                     )}
                     {item.industry && (
-                      <span className="badge badge-ghost badge-sm">{item.industry}</span>
+                      <span className="badge badge-ghost badge-sm">
+                        {item.industry}
+                      </span>
                     )}
                   </div>
+
+                  {/* Analysis Section */}
+                  <div className="mb-4">
+                    <AnalysisPanel
+                      analyses={analyses[item.symbol] || []}
+                      isLoading={analysesLoading[item.symbol] || false}
+                    />
+                  </div>
+
+                  <div className="divider my-1"></div>
 
                   {/* Comments Section */}
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                      <FiMessageSquare className="h-4 w-4 text-primary" />
+                      <FiMessageSquare className="text-primary h-4 w-4" />
                       <h3 className="font-semibold">
                         Notes & Analysis
                         {itemComments.length > 0 && (
@@ -347,7 +383,9 @@ export default function WatchlistManager() {
                                   </button>
                                   <button
                                     className="btn btn-primary btn-xs"
-                                    onClick={() => handleUpdateComment(item.symbol)}
+                                    onClick={() =>
+                                      handleUpdateComment(item.symbol)
+                                    }
                                   >
                                     Save
                                   </button>
@@ -356,7 +394,7 @@ export default function WatchlistManager() {
                             ) : (
                               /* View Mode */
                               <>
-                                <p className="whitespace-pre-wrap text-sm">
+                                <p className="text-sm whitespace-pre-wrap">
                                   {comment.text}
                                 </p>
                                 <div className="mt-2 flex items-center justify-between">
@@ -366,7 +404,9 @@ export default function WatchlistManager() {
                                       {comment.author_name}
                                     </span>
                                     <span>·</span>
-                                    <span>{formatDateTime(comment.created_at)}</span>
+                                    <span>
+                                      {formatDateTime(comment.created_at)}
+                                    </span>
                                     {comment.updated_at && (
                                       <span className="italic">(edited)</span>
                                     )}
@@ -387,7 +427,10 @@ export default function WatchlistManager() {
                                       <button
                                         className="btn btn-ghost btn-xs text-error"
                                         onClick={() =>
-                                          handleDeleteComment(item.symbol, comment.id)
+                                          handleDeleteComment(
+                                            item.symbol,
+                                            comment.id,
+                                          )
                                         }
                                       >
                                         <FiTrash2 className="h-3 w-3" />

@@ -1,7 +1,11 @@
 'use server';
 
 import { adminDb } from '@/utils/firebase-admin';
-import { WatchlistItem, WatchlistComment } from '@/types/watchlist';
+import {
+  WatchlistItem,
+  WatchlistComment,
+  StockAnalysis,
+} from '@/types/watchlist';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const WATCHLIST_COLLECTION = 'watchlist';
@@ -36,7 +40,10 @@ export async function addWatchlistItemAction(
   const existing = await docRef.get();
 
   if (existing.exists) {
-    return { success: false, message: `${upperSymbol} is already in the watchlist` };
+    return {
+      success: false,
+      message: `${upperSymbol} is already in the watchlist`,
+    };
   }
 
   await docRef.set({
@@ -135,7 +142,8 @@ export async function updateCommentAction(
     .doc(commentId);
 
   const commentDoc = await commentRef.get();
-  if (!commentDoc.exists) return { success: false, message: 'Comment not found' };
+  if (!commentDoc.exists)
+    return { success: false, message: 'Comment not found' };
   if (commentDoc.data()?.author_id !== userId) {
     return { success: false, message: 'Not authorized' };
   }
@@ -164,11 +172,68 @@ export async function deleteCommentAction(
     .doc(commentId);
 
   const commentDoc = await commentRef.get();
-  if (!commentDoc.exists) return { success: false, message: 'Comment not found' };
+  if (!commentDoc.exists)
+    return { success: false, message: 'Comment not found' };
   if (commentDoc.data()?.author_id !== userId) {
     return { success: false, message: 'Not authorized' };
   }
 
   await commentRef.delete();
   return { success: true };
+}
+
+// --- Analyses ---
+
+export async function getAnalysesAction(
+  symbol: string,
+  limit: number = 7,
+): Promise<StockAnalysis[]> {
+  if (!symbol) return [];
+
+  const snapshot = await adminDb
+    .collection(WATCHLIST_COLLECTION)
+    .doc(symbol)
+    .collection('analyses')
+    .orderBy('date', 'desc')
+    .limit(limit)
+    .get();
+
+  return snapshot.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      date: d.date || doc.id,
+      symbol: d.symbol || symbol,
+      last_price: d.last_price ?? null,
+      close_price: d.close_price ?? null,
+      open: d.open ?? null,
+      high: d.high ?? null,
+      low: d.low ?? null,
+      volume: d.volume ?? null,
+      avg_volume: d.avg_volume ?? null,
+      market_cap: d.market_cap ?? null,
+      beta: d.beta ?? null,
+      pe: d.pe ?? null,
+      forward_pe: d.forward_pe ?? null,
+      eps: d.eps ?? null,
+      forward_eps: d.forward_eps ?? null,
+      peg: d.peg ?? null,
+      ev_to_ebitda: d.ev_to_ebitda ?? null,
+      ev_to_revenue: d.ev_to_revenue ?? null,
+      dividend_yield: d.dividend_yield ?? null,
+      payout_ratio: d.payout_ratio ?? null,
+      profit_margin: d.profit_margin ?? null,
+      operating_margin: d.operating_margin ?? null,
+      gross_margin: d.gross_margin ?? null,
+      revenue_growth: d.revenue_growth ?? null,
+      earnings_growth: d.earnings_growth ?? null,
+      roe: d.roe ?? null,
+      roa: d.roa ?? null,
+      current_ratio: d.current_ratio ?? null,
+      de_ratio: d.de_ratio ?? null,
+      free_cashflow: d.free_cashflow ?? null,
+      short_ratio: d.short_ratio ?? null,
+      week52_high: d.week52_high ?? null,
+      week52_low: d.week52_low ?? null,
+    };
+  });
 }
