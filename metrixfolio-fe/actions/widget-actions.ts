@@ -28,8 +28,8 @@ export async function saveGrowthSettingsAction(
       {
         widgets: {
           growth_goals: {
-            ...data,
-            baseAmount: data.baseAmount || 1000,
+            growthRate: data.growthRate,
+            baseAmount: data.baseAmount ?? 1000,
           },
         },
       },
@@ -52,6 +52,8 @@ export async function checkMilestonesAction(
   const ref = CONFIG_PATH(userId);
   const doc = await ref.get();
 
+  let growth: GrowthWidgetData;
+
   if (!doc.exists) {
     // If no config exists, create a default one to allow milestone tracking
     const defaultConfig = {
@@ -64,19 +66,22 @@ export async function checkMilestonesAction(
       },
     };
     await ref.set(defaultConfig, { merge: true });
-    return;
-  }
-
-  const widgets = doc.data()?.widgets || {};
-  let growth = widgets.growth_goals as GrowthWidgetData;
-
-  if (!growth) {
-    // If goals missing from widgets, initialize them
     growth = { growthRate: 10, baseAmount: 1000, milestones: [] };
-    await ref.update({ 'widgets.growth_goals': growth });
+  } else {
+    const widgets = doc.data()?.widgets || {};
+    growth = widgets.growth_goals as GrowthWidgetData;
+
+    if (!growth) {
+      growth = { growthRate: 10, baseAmount: 1000, milestones: [] };
+      await ref.update({ 'widgets.growth_goals': growth });
+    }
   }
 
-  let baseVal = growth.baseAmount || 1000;
+  const baseVal = growth.baseAmount ?? 1000;
+
+  // Cannot compute compound growth from 0
+  if (baseVal <= 0) return { success: false };
+
   let loopVal = baseVal;
   let step = 1;
   const rate = (growth.growthRate || 10) / 100;
@@ -102,7 +107,7 @@ export async function checkMilestonesAction(
 
     loopVal = nextVal;
     step++;
-    
+
     if (step > 1000) break;
   }
 
@@ -122,4 +127,24 @@ export async function getGrowthWidgetAction(
 ): Promise<GrowthWidgetData | null> {
   const doc = await CONFIG_PATH(userId).get();
   return doc.data()?.widgets?.growth_goals || null;
+}
+
+export async function saveGoalAmountAction(userId: string, goalAmount: number) {
+  if (!userId) return { success: false, message: 'Auth required' };
+
+  try {
+    await CONFIG_PATH(userId).set({ goal_amount: goalAmount }, { merge: true });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+export async function getGoalAmountAction(
+  userId: string,
+): Promise<number | null> {
+  if (!userId) return null;
+
+  const doc = await CONFIG_PATH(userId).get();
+  return doc.data()?.goal_amount ?? null;
 }

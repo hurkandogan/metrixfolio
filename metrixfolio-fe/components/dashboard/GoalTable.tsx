@@ -2,7 +2,13 @@
 
 import { formatCurrency } from '@/utils/functions';
 import { FC, useEffect, useState, useRef } from 'react';
-import { FiCheckCircle, FiTarget, FiSettings, FiSave, FiX } from 'react-icons/fi';
+import {
+  FiCheckCircle,
+  FiTarget,
+  FiSettings,
+  FiSave,
+  FiX,
+} from 'react-icons/fi';
 import {
   checkMilestonesAction,
   getGrowthWidgetAction,
@@ -43,11 +49,17 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     if (!user) return;
     const data = await getGrowthWidgetAction(user.uid);
     if (data) {
-        setConfig(data);
-        setEditForm({
-            growthRate: data.growthRate.toString(),
-            baseAmount: (data.baseAmount || 1000).toString(),
-        });
+      setConfig(data);
+      setEditForm({
+        growthRate: data.growthRate.toString(),
+        baseAmount: (data.baseAmount ?? 1000).toString(),
+      });
+    } else {
+      // Auto-create default config for new users
+      await saveGrowthSettingsAction(user.uid, {
+        growthRate: 10,
+        baseAmount: 1000,
+      });
     }
   };
 
@@ -69,8 +81,14 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
 
   useEffect(() => {
     const rows = [];
-    const baseVal = config.baseAmount || 1000;
+    const baseVal = config.baseAmount ?? 1000;
     const rate = (config.growthRate || 10) / 100;
+
+    // Cannot compute compound growth from 0
+    if (baseVal <= 0) {
+      setTableData([]);
+      return;
+    }
 
     let activeStep = 1;
     if (currentValue > baseVal) {
@@ -112,75 +130,113 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
     setIsSaving(true);
 
     const res = await saveGrowthSettingsAction(user.uid, {
-        growthRate: parseFloat(editForm.growthRate),
-        baseAmount: parseFloat(editForm.baseAmount),
+      growthRate: parseFloat(editForm.growthRate),
+      baseAmount: parseFloat(editForm.baseAmount),
     });
 
     if (res.success) {
-        await loadData();
-        settingsModalRef.current?.close();
+      await loadData();
+      settingsModalRef.current?.close();
     } else {
-        alert('Error: ' + res.message);
+      alert('Error: ' + res.message);
     }
     setIsSaving(false);
   };
 
   return (
-    <div className="card bg-base-100 border-base-200 flex h-full flex-col border shadow-xl relative">
+    <div className="card bg-base-100 border-base-200 relative flex h-full flex-col border shadow-xl">
       {/* Settings Modal */}
-      <dialog ref={settingsModalRef} className="modal modal-bottom sm:modal-middle">
+      <dialog
+        ref={settingsModalRef}
+        className="modal modal-bottom sm:modal-middle"
+      >
         <div className="modal-box">
-          <h3 className="font-bold text-lg flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-lg font-bold">
             <FiSettings className="text-primary" /> Growth Settings
           </h3>
-          <p className="py-2 text-sm opacity-70">Customize your compound interest targets.</p>
-          
+          <p className="py-2 text-sm opacity-70">
+            Customize your compound interest targets.
+          </p>
+
           <form onSubmit={handleSaveSettings} className="space-y-4 pt-4">
             <div className="form-control">
-              <label className="label"><span className="label-text font-bold">Starting Principal ($)</span></label>
-              <input 
-                required 
-                type="number" 
-                className="input input-bordered focus:input-primary" 
-                value={editForm.baseAmount} 
-                onChange={(e) => setEditForm({...editForm, baseAmount: e.target.value})}
+              <label className="label">
+                <span className="label-text font-bold">
+                  Starting Principal ($)
+                </span>
+              </label>
+              <input
+                required
+                type="number"
+                className="input input-bordered focus:input-primary"
+                value={editForm.baseAmount}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, baseAmount: e.target.value })
+                }
               />
               <label className="label">
-                <span className="label-text-alt opacity-50 italic">The initial amount your growth table starts from.</span>
+                <span className="label-text-alt italic opacity-50">
+                  The initial amount your growth table starts from.
+                </span>
               </label>
             </div>
 
             <div className="form-control">
-              <label className="label"><span className="label-text font-bold">Target Growth Rate (%)</span></label>
-              <input 
-                required 
-                type="number" 
-                className="input input-bordered focus:input-primary" 
-                value={editForm.growthRate} 
-                onChange={(e) => setEditForm({...editForm, growthRate: e.target.value})}
+              <label className="label">
+                <span className="label-text font-bold">
+                  Target Growth Rate (%)
+                </span>
+              </label>
+              <input
+                required
+                type="number"
+                className="input input-bordered focus:input-primary"
+                value={editForm.growthRate}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, growthRate: e.target.value })
+                }
               />
               <label className="label">
-                <span className="label-text-alt opacity-50 italic">Percentage growth expected for each step.</span>
+                <span className="label-text-alt italic opacity-50">
+                  Percentage growth expected for each step.
+                </span>
               </label>
             </div>
 
             <div className="modal-action">
-              <button type="button" className="btn btn-ghost" onClick={() => settingsModalRef.current?.close()}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={isSaving}>
-                {isSaving ? <span className="loading loading-spinner"></span> : <FiSave />} Save
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => settingsModalRef.current?.close()}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <span className="loading loading-spinner"></span>
+                ) : (
+                  <FiSave />
+                )}{' '}
+                Save
               </button>
             </div>
           </form>
         </div>
-        <form method="dialog" className="modal-backdrop"><button>close</button></form>
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
       </dialog>
 
       <div className="card-body flex-none p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="card-title text-lg flex items-center gap-2">
+          <h2 className="card-title flex items-center gap-2 text-lg">
             Growth Targets 🚀
           </h2>
-          <button 
+          <button
             className="btn btn-ghost btn-xs btn-circle hover:bg-primary/10 transition-colors"
             onClick={() => settingsModalRef.current?.showModal()}
             title="Settings"
@@ -205,44 +261,80 @@ export const GoalTable: FC<GoalTableProps> = ({ currentValue }) => {
           <tbody>
             {tableData.map((row) => {
               const isCompleted = currentValue >= row.end;
-              const isActive = currentValue >= row.start && currentValue < row.end;
+              const isActive =
+                currentValue >= row.start && currentValue < row.end;
               const gap = row.end - currentValue;
 
               const stepProgress = isActive
-                ? Math.min(100, Math.max(0, ((currentValue - row.start) / (row.end - row.start)) * 100))
-                : isCompleted ? 100 : 0;
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      ((currentValue - row.start) / (row.end - row.start)) *
+                        100,
+                    ),
+                  )
+                : isCompleted
+                  ? 100
+                  : 0;
 
               const progressColor =
-                stepProgress < 25 ? 'progress-error' :
-                stepProgress < 55 ? 'progress-warning' :
-                stepProgress < 80 ? 'progress-info' : 'progress-success';
+                stepProgress < 25
+                  ? 'progress-error'
+                  : stepProgress < 55
+                    ? 'progress-warning'
+                    : stepProgress < 80
+                      ? 'progress-info'
+                      : 'progress-success';
 
               return (
                 <tr
                   key={row.step}
                   ref={isActive ? activeRowRef : null}
-                  className={isActive ? 'bg-primary/5 border-primary border-l-4 shadow-sm' : isCompleted ? 'opacity-60 transition-opacity hover:opacity-100' : ''}
+                  className={
+                    isActive
+                      ? 'bg-primary/5 border-primary border-l-4 shadow-sm'
+                      : isCompleted
+                        ? 'opacity-60 transition-opacity hover:opacity-100'
+                        : ''
+                  }
                 >
                   <td className="font-bold opacity-50">{row.step}</td>
                   <td className="font-mono">{formatCurrency(row.start)}</td>
-                  <td className={`font-mono font-bold ${isCompleted ? 'text-success' : ''}`}>
+                  <td
+                    className={`font-mono font-bold ${isCompleted ? 'text-success' : ''}`}
+                  >
                     {formatCurrency(row.end)}
                   </td>
                   <td className="w-32 align-middle">
                     {isActive ? (
                       <div className="flex flex-col gap-1">
-                        <progress className={`progress w-full ${progressColor}`} value={stepProgress} max="100"></progress>
-                        <span className="text-primary text-right text-[10px] font-bold">{stepProgress.toFixed(1)}%</span>
+                        <progress
+                          className={`progress w-full ${progressColor}`}
+                          value={stepProgress}
+                          max="100"
+                        ></progress>
+                        <span className="text-primary text-right text-[10px] font-bold">
+                          {stepProgress.toFixed(1)}%
+                        </span>
                       </div>
                     ) : (
-                      <progress className={`progress w-full ${isCompleted ? 'progress-success' : 'opacity-30'}`} value={isCompleted ? 100 : 0} max="100"></progress>
+                      <progress
+                        className={`progress w-full ${isCompleted ? 'progress-success' : 'opacity-30'}`}
+                        value={isCompleted ? 100 : 0}
+                        max="100"
+                      ></progress>
                     )}
                   </td>
                   <td>
                     {isActive ? (
-                      <span className="badge badge-sm badge-warning font-mono whitespace-nowrap">{formatCurrency(gap)} left</span>
+                      <span className="badge badge-sm badge-warning font-mono whitespace-nowrap">
+                        {formatCurrency(gap)} left
+                      </span>
                     ) : isCompleted ? (
-                      <span className="text-success text-xs font-bold">Reached</span>
+                      <span className="text-success text-xs font-bold">
+                        Reached
+                      </span>
                     ) : (
                       <span className="opacity-30">-</span>
                     )}

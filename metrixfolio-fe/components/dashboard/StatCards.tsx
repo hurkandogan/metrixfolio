@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FiArrowUp, FiArrowDown, FiMinus } from 'react-icons/fi';
 import { useDebts } from '@/hooks/useDebts';
-import { db } from '@/utils/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthProvider';
+import {
+  saveGoalAmountAction,
+  getGoalAmountAction,
+} from '@/actions/widget-actions';
 
 interface StatCardsProps {
   totalValue: number;
@@ -38,17 +40,16 @@ export const StatCards: React.FC<StatCardsProps> = ({
 
     const fetchGoal = async () => {
       try {
-        const docRef = doc(db, 'users', user.uid, 'configuration', 'main');
-        const docSnap = await getDoc(docRef);
+        const goalFromDb = await getGoalAmountAction(user.uid);
 
-        if (docSnap.exists() && docSnap.data().goal_amount) {
-          setGoalAmount(docSnap.data().goal_amount);
+        if (goalFromDb != null && goalFromDb > 0) {
+          setGoalAmount(goalFromDb);
         } else {
           const nextGoal =
             GOAL_MILESTONES.find((g) => g > totalValue) ||
             GOAL_MILESTONES[GOAL_MILESTONES.length - 1];
           setGoalAmount(nextGoal);
-          await setDoc(docRef, { goal_amount: nextGoal }, { merge: true });
+          await saveGoalAmountAction(user.uid, nextGoal);
         }
         setIsLoaded(true);
       } catch (error) {
@@ -60,10 +61,9 @@ export const StatCards: React.FC<StatCardsProps> = ({
   }, [user, totalValue, isLoaded]);
 
   const handleBlur = async () => {
-    if (!user) return;
+    if (!user || goalAmount <= 0) return;
     try {
-      const docRef = doc(db, 'users', user.uid, 'configuration', 'main');
-      await setDoc(docRef, { goal_amount: goalAmount }, { merge: true });
+      await saveGoalAmountAction(user.uid, goalAmount);
     } catch (error) {
       console.error('Error saving goal amount:', error);
     }
@@ -122,10 +122,13 @@ export const StatCards: React.FC<StatCardsProps> = ({
         <div className="stat-value text-primary text-3xl font-extrabold tracking-tight lg:text-4xl">
           {formatCurrency(totalValue)}
         </div>
-        <div className="stat-desc mt-1 font-medium flex flex-row items-center justify-between w-full">
+        <div className="stat-desc mt-1 flex w-full flex-row items-center justify-between font-medium">
           {renderDiff(totalValue, prevTotalValue)}
-          <span className={`ml-auto flex items-center text-sm font-semibold whitespace-nowrap pl-2 ${netLiq >= 0 ? 'text-success' : 'text-error'}`}>
-            Net Liq: {formatPercentage(netLiqPercentage)} | {formatCurrency(netLiq)}
+          <span
+            className={`ml-auto flex items-center pl-2 text-sm font-semibold whitespace-nowrap ${netLiq >= 0 ? 'text-success' : 'text-error'}`}
+          >
+            Net Liq: {formatPercentage(netLiqPercentage)} |{' '}
+            {formatCurrency(netLiq)}
           </span>
         </div>
       </div>
@@ -146,9 +149,9 @@ export const StatCards: React.FC<StatCardsProps> = ({
         >
           {formatCurrency(totalProfit)}
         </div>
-        <div className="stat-desc mt-1">
+        <div className="stat-desc mt-1 flex w-full flex-row items-center justify-between">
           <span
-            className={`text-sm font-bold flex-shrink-0 ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}
+            className={`flex-shrink-0 text-sm font-bold ${profitPercentage >= 0 ? 'text-success' : 'text-error'}`}
           >
             {formatPercentage(profitPercentage)}
           </span>
